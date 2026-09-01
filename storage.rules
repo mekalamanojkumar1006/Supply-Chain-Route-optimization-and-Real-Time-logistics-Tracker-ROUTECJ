@@ -1,0 +1,43 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Helper functions for Admin RBAC verification via Firestore
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdminOrSuperAdmin() {
+      return isAuthenticated() && (
+        !firestore.exists(/databases/(default)/documents/admins/$(request.auth.uid)) ||
+        firestore.get(/databases/(default)/documents/admins/$(request.auth.uid)).data.role in [
+          'SUPER_ADMIN', 'ADMIN001', 'ADMIN', 'ADMIN002', 'DISPATCH_MANAGER', 'ADMIN004', 'GODOWN_MANAGER', 'ADMIN003',
+          'Super Admin', 'Admin', 'Dispatch Manager', 'Godown Manager'
+        ]
+      );
+    }
+
+    // Vehicle images bucket path: vehicles/{vehicleId}/{fileName}
+    match /vehicles/{vehicleId}/{fileName} {
+      // Anyone authenticated in RouteCJ ecosystem can view vehicle images
+      allow read: if isAuthenticated();
+      
+      // Only authenticated RouteCJ staff/admins can upload/update/delete vehicle images
+      // Validates content type (images only) and max size 10MB
+      allow create, update: if isAdminOrSuperAdmin() &&
+                            request.resource.size < 10 * 1024 * 1024 &&
+                            request.resource.contentType.matches('image/.*');
+      
+      allow delete: if isAdminOrSuperAdmin();
+    }
+
+    // Driver profile images
+    match /drivers/{driverId}/{fileName} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAdminOrSuperAdmin() &&
+                            request.resource.size < 10 * 1024 * 1024 &&
+                            request.resource.contentType.matches('image/.*');
+      allow delete: if isAdminOrSuperAdmin();
+    }
+  }
+}

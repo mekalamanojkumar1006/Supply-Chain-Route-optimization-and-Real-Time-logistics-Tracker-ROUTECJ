@@ -1,0 +1,120 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper function to get current user data safely
+    function getAdmin() {
+      let adminPath = /databases/$(database)/documents/admins/$(request.auth.uid);
+      return exists(adminPath) ? get(adminPath).data : {"role": "UNKNOWN"};
+    }
+
+    // Helper to check for specific roles
+    function isSuperAdmin() {
+      let admin = getAdmin();
+      return request.auth != null && (
+        admin.role == "ADMIN001" ||
+        admin.role == "SUPER_ADMIN" ||
+        admin.role == "Super Admin"
+      );
+    }
+
+    function isAdmin() {
+      let admin = getAdmin();
+      return request.auth != null && (
+        isSuperAdmin() ||
+        admin.role == "ADMIN002" ||
+        admin.role == "ADMIN" ||
+        admin.role == "Admin"
+      );
+    }
+
+    function isDispatchManager() {
+      let admin = getAdmin();
+      return request.auth != null && (
+        isAdmin() ||
+        admin.role == "ADMIN004" ||
+        admin.role == "DISPATCH_MANAGER" ||
+        admin.role == "Dispatch Manager"
+      );
+    }
+
+    function isGodownManager() {
+      let admin = getAdmin();
+      return request.auth != null && (
+        isAdmin() ||
+        admin.role == "ADMIN003" ||
+        admin.role == "GODOWN_MANAGER" ||
+        admin.role == "Godown Manager"
+      );
+    }
+
+    // --- Admins Collection ---
+    match /admins/{userId} {
+      // Allow user to read their own document by ID, UID field, or Verified Email
+      allow read: if request.auth != null && (
+        request.auth.uid == userId ||
+        resource.data.uid == request.auth.uid ||
+        (resource.data.email != null && resource.data.email == request.auth.token.email) ||
+        isSuperAdmin()
+      );
+
+      // Only Super Admin can create/delete admins or change roles
+      allow create, delete: if isSuperAdmin();
+
+      allow update: if request.auth != null && (
+        (request.auth.uid == userId && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'uid', 'email'])) ||
+        isSuperAdmin()
+      );
+    }
+
+    // --- Orders Collection ---
+    match /orders/{orderId} {
+      allow read: if request.auth != null;
+      allow create, update: if isAdmin() || isDispatchManager();
+      allow delete: if isSuperAdmin();
+    }
+
+    // --- Drivers & Vehicles ---
+    match /drivers/{driverId} {
+      allow read: if request.auth != null;
+      allow create, update, delete: if isAdmin() || isDispatchManager();
+    }
+    match /vehicles/{vehicleId} {
+      allow read: if request.auth != null;
+      allow create, update, delete: if isAdmin() || isDispatchManager();
+
+      match /logs/{logId} {
+        allow read: if request.auth != null;
+        allow write: if isAdmin() || isDispatchManager();
+      }
+    }
+
+    // --- Dispatches ---
+    match /dispatches/{dispatchId} {
+      allow read: if request.auth != null;
+      allow create, update: if isAdmin() || isDispatchManager();
+      allow delete: if isSuperAdmin();
+    }
+
+    // --- Godowns ---
+    match /godowns/{godownId} {
+      allow read: if request.auth != null;
+      allow create, update, delete: if isAdmin() || isGodownManager();
+    }
+
+    // --- Notifications ---
+    match /notifications/{notificationId} {
+      allow create: if request.auth != null; // System generated
+      allow delete: if isSuperAdmin();
+      allow update: if request.auth != null && (
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead', 'updatedAt'])
+      );
+      allow read: if request.auth != null && (
+        isSuperAdmin() ||
+        resource.data.recipientId == request.auth.uid ||
+        resource.data.recipientRole == getAdmin().role ||
+        resource.data.recipientRole == "GLOBAL"
+      );
+    }
+  }
+}

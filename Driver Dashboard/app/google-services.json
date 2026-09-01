@@ -1,0 +1,97 @@
+{
+  "project_info": {
+    "project_number": "503574712937",
+    "project_id": "supplychaintracking-21492",
+    "storage_bucket": "supplychaintracking-21492.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:503574712937:android:237ca0e2dc977c65b688f8",
+        "android_client_info": {
+          "package_name": "com.routecj.admin"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "503574712937-3thofsi5averf05ic6ftsmrfp4k62r6p.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCV4tiza0XvNJ4ZgT1dFx6cYYQxmCVHjaM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "503574712937-3thofsi5averf05ic6ftsmrfp4k62r6p.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:503574712937:android:804044ace70c94afb688f8",
+        "android_client_info": {
+          "package_name": "com.routecj.customer"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "503574712937-3thofsi5averf05ic6ftsmrfp4k62r6p.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCV4tiza0XvNJ4ZgT1dFx6cYYQxmCVHjaM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "503574712937-3thofsi5averf05ic6ftsmrfp4k62r6p.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:503574712937:android:6e3b28b47802f91bb688f8",
+        "android_client_info": {
+          "package_name": "com.routecj.driver"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "503574712937-3thofsi5averf05ic6ftsmrfp4k62r6p.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCV4tiza0XvNJ4ZgT1dFx6cYYQxmCVHjaM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "503574712937-3thofsi5averf05ic6ftsmrfp4k62r6p.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

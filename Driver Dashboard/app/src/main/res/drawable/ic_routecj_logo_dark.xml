@@ -1,0 +1,78 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="200dp"
+    android:height="200dp"
+    android:viewportWidth="200"
+    android:viewportHeight="200">
+
+    <!-- MASTER ROUTECJ SYMBOL (Top Centered) -->
+    <group>
+        <!-- Flowing Navigation Path Ribbon (Premium Cyan) -->
+        <path
+            android:fillColor="#00C7C7"
+            android:pathData="M 52,74 C 60,74 67,68 73,60 L 66,54 C 61,61 56,65 53,65 C 48,65 45,60 45,52 C 45,42 53,30 65,30 L 65,20 C 48,20 35,35 35,52 C 35,66 42,74 52,74 Z" />
+
+        <!-- Outer Flowing GPS Pin Contour (Premium Cyan) -->
+        <path
+            android:fillColor="#00C7C7"
+            android:pathData="M 100,10 C 82.3,10 68,24.3 68,42 C 68,64 93,88 98.2,93.5 C 99.2,94.5 100.8,94.5 101.8,93.5 C 107,88 132,64 132,42 C 132,24.3 117.7,10 100,10 Z M 100,22 C 111,22 120,31 120,42 C 120,53 111,68 100,81 C 89,68 80,53 80,42 C 80,31 89,22 100,22 Z" />
+
+        <!-- Origin Location Point Dot (Premium Cyan) -->
+        <path
+            android:fillColor="#00C7C7"
+            android:pathData="M 52,65 A 4.5,4.5 0 1,0 52,74 A 4.5,4.5 0 1,0 52,65 Z" />
+
+        <!-- Core Parcel Box Inside GPS Pin (cyan top, navy faces) -->
+        <path
+            android:fillColor="#00C7C7"
+            android:pathData="M 100,26 L 112,32 L 100,38 L 88,32 Z" />
+        <path
+            android:fillColor="#0B172A"
+            android:pathData="M 88,32 L 100,38 L 100,48 L 88,42 Z" />
+        <path
+            android:fillColor="#0B172A"
+            android:pathData="M 100,38 L 112,32 L 112,42 L 100,48 Z" />
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M 98,27 L 102,29 L 102,47 L 98,45 Z" />
+    </group>
+
+    <!-- TYPOGRAPHY: "ROUTE" (Dominant, Large, Bold, White for dark backgrounds) -->
+    <!-- R -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M 20,110 H 42 C 46.5,110 48.5,112.5 48.5,117 C 48.5,121.5 46.5,124 42,124 L 48.5,142 H 39.5 L 33.5,124 H 27 V 142 H 20 Z M 27,115.5 V 118.5 H 41 C 42,118.5 42.5,118 42.5,117 C 42.5,116 42,115.5 41,115.5 Z" />
+
+    <!-- O -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M 64,110 H 72 C 78,110 82,114 82,126 C 82,138 78,142 72,142 H 64 C 58,142 54,138 54,126 C 54,114 58,110 64,110 Z M 65,116 C 62,116 61,118.5 61,126 C 61,133.5 62,136 65,136 H 71 C 74,136 75,133.5 75,126 C 75,118.5 74,116 71,116 Z" />
+
+    <!-- U -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M 88,110 H 95 V 134 C 95,136 96.5,137 100,137 C 103.5,137 105,136 105,134 V 110 H 112 V 134 C 112,140 107.5,142 100,142 C 92.5,142 88,140 88,134 Z" />
+
+    <!-- T -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M 118,110 H 146 V 116 H 135.5 V 142 H 128.5 V 116 H 118 Z" />
+
+    <!-- E -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M 152,110 H 180 V 116 H 159 V 122.5 H 177 V 128.5 H 159 V 136 H 180 V 142 H 152 Z" />
+
+    <!-- TYPOGRAPHY: "CJ" (Smaller, Bold, Premium Cyan #00C7C7, Centered Directly Below) -->
+    <!-- C -->
+    <path
+        android:fillColor="#00C7C7"
+        android:pathData="M 96,156 C 90,156 88,158.5 88,161 C 88,163.5 90,166 96,166 C 99,166 100,164.5 100,163 H 96 C 93,163 91.5,162 91.5,161 C 91.5,160 93,159 96,159 H 100 V 156 Z" />
+
+    <!-- J -->
+    <path
+        android:fillColor="#00C7C7"
+        android:pathData="M 109,156 V 162.5 C 109,164 108,164.8 106.5,164.8 C 105,164.8 104,164 104,162.5 H 100 C 100,165 102.5,166 106.5,166 C 110.5,166 113,164 113,162.5 V 156 Z" />
+
+</vector>

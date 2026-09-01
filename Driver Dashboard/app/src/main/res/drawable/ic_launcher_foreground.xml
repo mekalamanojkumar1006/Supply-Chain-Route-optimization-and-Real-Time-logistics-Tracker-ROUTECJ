@@ -1,0 +1,43 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <group
+        android:translateX="18"
+        android:translateY="12"
+        android:scaleX="0.7"
+        android:scaleY="0.7">
+
+        <!-- Flowing Navigation Path Ribbon (Premium Cyan) -->
+        <path
+            android:fillColor="#00C7C7"
+            android:pathData="M 12,74 C 20,74 27,68 33,60 L 26,54 C 21,61 16,65 13,65 C 8,65 5,60 5,52 C 5,42 13,30 25,30 L 25,20 C 8,20 -5,35 -5,52 C -5,66 2,74 12,74 Z" />
+
+        <!-- Outer Flowing GPS Pin Contour (Premium Cyan) -->
+        <path
+            android:fillColor="#00C7C7"
+            android:pathData="M 60,10 C 42.3,10 28,24.3 28,42 C 28,64 53,88 58.2,93.5 C 59.2,94.5 60.8,94.5 61.8,93.5 C 67,88 92,64 92,42 C 92,24.3 77.7,10 60,10 Z M 60,22 C 71,22 80,31 80,42 C 80,53 71,68 60,81 C 49,68 40,53 40,42 C 40,31 49,22 60,22 Z" />
+
+        <!-- Origin Location Point Dot (Premium Cyan) -->
+        <path
+            android:fillColor="#00C7C7"
+            android:pathData="M 12,65 A 4.5,4.5 0 1,0 12,74 A 4.5,4.5 0 1,0 12,65 Z" />
+
+        <!-- Core Parcel Box Inside GPS Pin (white highlight and navy faces) -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M 60,26 L 72,32 L 60,38 L 48,32 Z" />
+        <path
+            android:fillColor="#0B172A"
+            android:pathData="M 48,32 L 60,38 L 60,48 L 48,42 Z" />
+        <path
+            android:fillColor="#0B172A"
+            android:pathData="M 60,38 L 72,32 L 72,42 L 60,48 Z" />
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M 58,27 L 62,29 L 62,47 L 58,45 Z" />
+    </group>
+
+</vector>

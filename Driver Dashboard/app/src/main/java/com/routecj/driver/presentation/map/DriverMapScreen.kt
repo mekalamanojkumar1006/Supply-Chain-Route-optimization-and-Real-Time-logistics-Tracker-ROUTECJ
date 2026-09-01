@@ -7,7 +7,6 @@ import android.graphics.Canvas
 import android.graphics.Color as AndroidColor
 import android.graphics.Paint
 import android.graphics.drawable.BitmapDrawable
-import android.net.Uri
 import android.provider.Settings
 import android.widget.Toast
 import androidx.compose.foundation.background
@@ -110,13 +109,6 @@ fun DriverMapScreen(
                 is DriverMapUiState.Active -> {
                     ActiveMapLayout(
                         state = state,
-                        onOpenExternalNav = { targetPoint ->
-                            if (targetPoint != null) {
-                                openExternalNavigation(context, targetPoint.latitude, targetPoint.longitude)
-                            } else {
-                                Toast.makeText(context, "Target location unavailable", Toast.LENGTH_SHORT).show()
-                            }
-                        },
                         onOpenLocationSettings = {
                             val intent = Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)
                             context.startActivity(intent)
@@ -265,7 +257,6 @@ fun createDestinationMarker(
 @Composable
 fun ActiveMapLayout(
     state: DriverMapUiState.Active,
-    onOpenExternalNav: (GeoPoint?) -> Unit,
     onOpenLocationSettings: () -> Unit,
     onNavigateBackToTrip: () -> Unit
 ) {
@@ -412,7 +403,7 @@ fun ActiveMapLayout(
         Column(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(bottom = 180.dp, end = 16.dp),
+                .padding(bottom = 140.dp, end = 16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -476,7 +467,6 @@ fun ActiveMapLayout(
         if (state.tripDetails != null) {
             BottomNavigationPanel(
                 state = state,
-                onOpenNav = { onOpenExternalNav(state.targetPoint) },
                 onNavigateBackToTrip = onNavigateBackToTrip,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -487,7 +477,6 @@ fun ActiveMapLayout(
                 storeLocation = state.selectedStore,
                 gpsState = state.gpsState,
                 driverLocation = state.driverLocation,
-                onOpenNav = { onOpenExternalNav(GeoPoint(state.selectedStore.latitude, state.selectedStore.longitude)) },
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(16.dp)
@@ -560,7 +549,6 @@ fun BottomStoreNavigationPanel(
     storeLocation: StoreLocation,
     gpsState: DriverGpsState,
     driverLocation: GeoPoint?,
-    onOpenNav: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -633,28 +621,6 @@ fun BottomStoreNavigationPanel(
                     fontWeight = FontWeight.Medium
                 )
             }
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            Button(
-                onClick = onOpenNav,
-                colors = ButtonDefaults.buttonColors(containerColor = RouteCJBlue),
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.fillMaxWidth().height(48.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.NearMe,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "NAVIGATE TO STORE",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 13.sp
-                )
-            }
         }
     }
 }
@@ -667,7 +633,7 @@ fun LocationWarningBanner(
     modifier: Modifier = Modifier
 ) {
     val (title, sub, color, icon) = when {
-        isRoutingFailed -> Quadruple("ROUTE TEMPORARILY UNAVAILABLE", "Driving route could not be calculated. Use exact coordinates for turn-by-turn navigation.", RouteCJWarning, Icons.Default.Navigation)
+        isRoutingFailed -> Quadruple("ROUTE TEMPORARILY UNAVAILABLE", "Driving route could not be calculated. Live position tracking remains active.", RouteCJWarning, Icons.Default.Sync)
         gpsState is DriverGpsState.OfflineWaiting -> Quadruple("OFFLINE LOCAL", "Waiting for network connection...", RouteCJWarning, Icons.Default.CloudOff)
         gpsState is DriverGpsState.LocationDisabled -> Quadruple("LOCATION TURNED OFF", "Enable GPS to continue live trip tracking.", RouteCJError, Icons.Default.LocationOff)
         gpsState is DriverGpsState.PermissionRequired -> Quadruple("PERMISSION NEEDED", "Allow location access to track trip.", RouteCJError, Icons.Default.Security)
@@ -741,12 +707,10 @@ data class Quadruple<A, B, C, D>(val first: A, val second: B, val third: C, val 
 @Composable
 fun BottomNavigationPanel(
     state: DriverMapUiState.Active,
-    onOpenNav: () -> Unit,
     onNavigateBackToTrip: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val trip = state.tripDetails ?: return
-    val actionBtnText = if (state.targetLabel.contains("PICKUP")) "NAVIGATE TO CUSTOMER PICKUP" else "NAVIGATE TO CUSTOMER DELIVERY"
 
     Card(
         modifier = modifier.fillMaxWidth(),
@@ -861,12 +825,11 @@ fun BottomNavigationPanel(
                 }
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
-
             if (state.isAtTarget) {
                 if (state.targetLabel.contains("PICKUP") && trip.driverArrived) {
                     // Do not show button if already arrived at pickup
                 } else {
+                    Spacer(modifier = Modifier.height(14.dp))
                     Button(
                         onClick = onNavigateBackToTrip,
                         colors = ButtonDefaults.buttonColors(containerColor = RouteCJSuccess),
@@ -881,26 +844,6 @@ fun BottomNavigationPanel(
                             color = RouteCJNavyDark
                         )
                     }
-                }
-            } else {
-                Button(
-                    onClick = onOpenNav,
-                    colors = ButtonDefaults.buttonColors(containerColor = RouteCJBlue),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth().height(48.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.NearMe,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = actionBtnText,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp
-                    )
                 }
             }
         }
@@ -965,25 +908,5 @@ fun TopTripInfoCard(
                 maxLines = 1
             )
         }
-    }
-}
-
-private fun openExternalNavigation(context: Context, latitude: Double, longitude: Double) {
-    try {
-        val gmmIntentUri = Uri.parse("google.navigation:q=$latitude,$longitude")
-        val mapIntent = Intent(Intent.ACTION_VIEW, gmmIntentUri).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK
-        }
-        if (mapIntent.resolveActivity(context.packageManager) != null) {
-            context.startActivity(mapIntent)
-        } else {
-            val geoUri = Uri.parse("geo:$latitude,$longitude?q=$latitude,$longitude")
-            val fallbackIntent = Intent(Intent.ACTION_VIEW, geoUri).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            }
-            context.startActivity(fallbackIntent)
-        }
-    } catch (_: Exception) {
-        Toast.makeText(context, "No navigation application installed on device.", Toast.LENGTH_SHORT).show()
     }
 }

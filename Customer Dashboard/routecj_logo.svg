@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" width="800" height="800">
+  <!-- Pure Black Background -->
+  <rect width="800" height="800" fill="#000000"/>
+
+  <!-- Centered RouteCJ Logo -->
+  <g transform="translate(0, 0)">
+    <!-- Truck Icon (Electric Blue #0066FF) -->
+    <g fill="#0066FF">
+      <!-- Cargo Body -->
+      <rect x="80" y="340" width="108" height="80" rx="8"/>
+
+      <!-- Cabin -->
+      <path d="M 193 360 L 222 360 C 235 360, 244 372, 244 388 L 244 420 L 193 420 Z"/>
+
+      <!-- Window Cutout (Black) -->
+      <path d="M 198 366 L 218 366 C 226 366, 233 374, 233 385 L 233 392 L 198 392 Z" fill="#000000"/>
+
+      <!-- Wheels -->
+      <!-- Rear Wheel Outer -->
+      <circle cx="118" cy="430" r="18"/>
+      <!-- Rear Wheel Inner Hub -->
+      <circle cx="118" cy="430" r="8" fill="#000000"/>
+
+      <!-- Front Wheel Outer -->
+      <circle cx="218" cy="430" r="18"/>
+      <!-- Front Wheel Inner Hub -->
+      <circle cx="218" cy="430" r="8" fill="#000000"/>
+    </g>
+
+    <!-- Wordmark "RouteCJ" -->
+    <text x="275" y="425"
+          fill="#0066FF"
+          font-family="system-ui, -apple-system, 'SF Pro Display', 'Inter', 'Montserrat', 'Helvetica Neue', Arial, sans-serif"
+          font-size="108"
+          font-weight="900"
+          letter-spacing="-1">RouteCJ</text>
+  </g>
+</svg>

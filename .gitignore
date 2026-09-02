@@ -1,0 +1,17 @@
+# IDE and OS files
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Build outputs
+build/
+*/build/
+.gradle/
+*/.gradle/
+local.properties
+secrets.properties
+
+# Workspace typo alias folder
+Adimin Dashboard/

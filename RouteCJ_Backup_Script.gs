@@ -1,9 +1,10 @@
 /**
  * ============================================================================
- * ROUTECJ LOGISTICS ECOSYSTEM — AUTOMATIC TWO-WAY FIRESTORE ↔ GOOGLE SHEETS SYNC
+ * ROUTECJ LOGISTICS ECOSYSTEM — MASTER FIREBASE ↔ GOOGLE SHEETS SYNC ENGINE
  * ============================================================================
  *
- * Master Spreadsheet Name: ROUTECJ DATABASE BACKUP / ROUTECJ ADMINISTRATION
+ * Master Spreadsheet ID: 17nwnNtKfBcw8zr2elXcAn3mbLS-PtLrSj9vIi4RJMLw
+ * Project ID: supplychaintracking-21492
  *
  * Architecture:
  *   RouteCJ Mobile/Web Apps (Admin, Driver, Customer)
@@ -12,28 +13,29 @@
  *          ↕ (Automatic Two-Way Synchronization Layer)
  *   Google Apps Script Sync Service (OAuth 2.0 JWT Bearer Token Authentication)
  *          ↕ (Controlled Administrative Management Mirror)
- *   Google Spreadsheet (Admins, Drivers, Vehicles, Godowns, Orders, Dispatches, Reports, SyncLog)
+ *   Google Spreadsheet (Orders, Dispatches, Drivers, Vehicles, Godowns, Admins, Tracking, Backup Log)
  *
- * Security & Reliability Guarantees:
- *   1. Firestore is the authoritative source of truth for all operational data.
- *   2. Zero private keys stored in Android app, Git repo, or Google Sheet cells.
- *   3. Strict validation: Phone, Email, 6-digit Pincodes, Latitude/Longitude ranges, Enums.
- *   4. Loop prevention: Programmatic mutation locks + syncSource metadata.
- *   5. Protected fields: Driver live GPS, Delivery OTP, QR tokens, Auth UIDs cannot be edited in Sheets.
- *   6. Audit trail: Every sync, user edit, validation rejection, and conflict logged to 'SyncLog'.
+ * Guarantees:
+ *   1. Zero private keys stored in Android app, Git repo, or Google Sheet cells.
+ *   2. Strict validation & loop prevention (ROUTECJ_PROGRAMMATIC_MUTATION_LOCK).
+ *   3. 100% Header and column alignment with the master Google Spreadsheet.
+ *   4. Multi-alias parser supporting camelCase, snake_case, and legacy field names.
+ *   5. Robust Last Login synchronization from Firestore server timestamps.
+ *   6. Deduplication by canonical Document ID, UID, and business ID (e.g. ADMIN001).
+ *   7. Dedicated Empty Field Audit diagnostic tool.
  * ============================================================================
  */
 
-// SPREADSHEET TAB DEFINITIONS
+// SPREADSHEET TAB DEFINITIONS (EXACT MATCH TO MASTER SPREADSHEET)
 var SHEET_TABS = {
-  ADMINS: "Admins",
+  ORDERS: "Orders",
+  DISPATCHES: "Dispatches",
   DRIVERS: "Drivers",
   VEHICLES: "Vehicles",
   GODOWNS: "Godowns",
-  ORDERS: "Orders",
-  DISPATCHES: "Dispatches",
-  REPORTS: "Reports",
-  SYNC_LOG: "SyncLog"
+  ADMINS: "Admins",
+  TRACKING: "Tracking",
+  BACKUP_LOG: "Backup Log"
 };
 
 // CACHE KEYS & CONFIGURATION
@@ -44,7 +46,7 @@ var CACHE_KEYS = {
 
 /**
  * ----------------------------------------------------------------------------
- * 1. SCRIPT CONFIGURATION & SCRIPT PROPERTIES (SECURE SERVER-SIDE STORAGE)
+ * 1. SCRIPT CONFIGURATION & SCRIPT PROPERTIES
  * ----------------------------------------------------------------------------
  */
 function getFirebaseProjectId() {
@@ -146,9 +148,13 @@ function testFirestoreConnection() {
     var token = getFirestoreAccessToken();
     Logger.log("✅ OAuth token acquired (First 15 chars: " + token.substring(0, 15) + "...)");
 
-    Logger.log("2. Testing Firestore REST read on 'orders' collection...");
-    var docs = fetchFirestoreDocuments("orders");
-    Logger.log("✅ Successfully connected! Found " + docs.length + " documents in 'orders'.");
+    Logger.log("2. Testing Firestore REST read on 'admins' collection...");
+    var docs = fetchFirestoreDocuments("admins");
+    Logger.log("✅ Successfully connected! Found " + docs.length + " documents in 'admins'.");
+
+    Logger.log("3. Testing Firestore REST read on 'orders' collection...");
+    var orderDocs = fetchFirestoreDocuments("orders");
+    Logger.log("✅ Successfully connected! Found " + orderDocs.length + " documents in 'orders'.");
     return true;
   } catch (e) {
     Logger.log("❌ Connection Test Failed: " + e.message);
@@ -248,7 +254,7 @@ function patchFirestoreDocument(collectionName, documentId, fieldsMap, updateMas
     firestoreFields[key] = convertJsValueToFirestoreValue(val);
   }
 
-  // Always attach sync metadata
+  // Attach sync metadata
   firestoreFields["updatedAt"] = { timestampValue: new Date().toISOString() };
   firestoreFields["syncSource"] = { stringValue: "GOOGLE_SHEETS" };
 
@@ -273,7 +279,7 @@ function patchFirestoreDocument(collectionName, documentId, fieldsMap, updateMas
 
 /**
  * ----------------------------------------------------------------------------
- * 4. FIELD CONVERSIONS & DATA PARSERS
+ * 4. FIELD CONVERSIONS & ROBUST DATA PARSERS
  * ----------------------------------------------------------------------------
  */
 function getString(f) {
@@ -282,7 +288,7 @@ function getString(f) {
   if (f.integerValue !== undefined) return String(f.integerValue);
   if (f.doubleValue !== undefined) return String(f.doubleValue);
   if (f.booleanValue !== undefined) return f.booleanValue ? "TRUE" : "FALSE";
-  if (f.timestampValue !== undefined) return f.timestampValue;
+  if (f.timestampValue !== undefined) return getTimestamp(f);
   if (f.referenceValue !== undefined) return f.referenceValue;
   return "";
 }
@@ -291,6 +297,10 @@ function getNumber(f) {
   if (!f) return 0;
   if (f.integerValue !== undefined) return parseInt(f.integerValue, 10);
   if (f.doubleValue !== undefined) return parseFloat(f.doubleValue);
+  if (f.stringValue !== undefined) {
+    var num = parseFloat(f.stringValue);
+    return isNaN(num) ? 0 : num;
+  }
   return 0;
 }
 
@@ -303,13 +313,22 @@ function getBoolean(f) {
 
 function getTimestamp(f) {
   if (!f) return "";
-  if (f.timestampValue !== undefined) {
+  var raw = f.timestampValue || f.stringValue;
+  if (f.integerValue !== undefined) {
+    var millis = parseInt(f.integerValue, 10);
     try {
-      var d = new Date(f.timestampValue);
+      var d = new Date(millis);
       return Utilities.formatDate(d, Session.getScriptTimeZone() || "GMT+05:30", "yyyy-MM-dd HH:mm:ss");
-    } catch (e) {
-      return f.timestampValue;
-    }
+    } catch (e) {}
+  }
+  if (raw) {
+    try {
+      var d = new Date(raw);
+      if (!isNaN(d.getTime())) {
+        return Utilities.formatDate(d, Session.getScriptTimeZone() || "GMT+05:30", "yyyy-MM-dd HH:mm:ss");
+      }
+    } catch (e) {}
+    return String(raw);
   }
   return "";
 }
@@ -355,157 +374,197 @@ function clearProgrammaticLock() {
 
 /**
  * ----------------------------------------------------------------------------
- * 6. SHEET DEFINITIONS, COLUMNS, & PERMISSION MATRIX
+ * 6. SHEET DEFINITIONS & COLUMN SCHEMAS (MATCHES MASTER SPREADSHEET 100%)
  * ----------------------------------------------------------------------------
  */
 var SCHEMA_DEFINITIONS = {
-  Admins: {
-    collection: "admins",
-    idColumnIndex: 1, // Admin ID (Col A)
-    headers: [
-      { name: "Admin ID", field: "adminId", protected: true },
-      { name: "Firebase UID", field: "uid", protected: true },
-      { name: "Admin Name", field: "name", protected: false },
-      { name: "Email", field: "email", protected: true },
-      { name: "Phone", field: "phone", protected: false },
-      { name: "Role", field: "role", protected: true },
-      { name: "Status", field: "status", protected: false },
-      { name: "Last Login", field: "lastLogin", protected: true },
-      { name: "Profile Image URL", field: "profileImage", protected: false },
-      { name: "Updated At", field: "updatedAt", protected: true }
-    ]
-  },
-  Drivers: {
-    collection: "drivers",
-    idColumnIndex: 1, // Driver ID (Col A)
-    headers: [
-      { name: "Driver ID", field: "id", protected: true },
-      { name: "Firebase UID", field: "uid", protected: true },
-      { name: "Driver Name", field: "name", protected: false },
-      { name: "Email", field: "email", protected: true },
-      { name: "Phone", field: "phone", protected: false },
-      { name: "Status", field: "status", protected: false },
-      { name: "License Number", field: "licenseNumber", protected: false },
-      { name: "License Expiry", field: "licenseExpiryDate", protected: false },
-      { name: "Assigned Vehicle ID", field: "assignedVehicleId", protected: false },
-      { name: "Rating", field: "rating", protected: true },
-      { name: "Total Deliveries", field: "totalDeliveries", protected: true },
-      { name: "Completed Deliveries", field: "completedDeliveries", protected: true },
-      { name: "Current Latitude", field: "currentLatitude", protected: true },
-      { name: "Current Longitude", field: "currentLongitude", protected: true },
-      { name: "Speed (km/h)", field: "speed", protected: true },
-      { name: "Heading", field: "heading", protected: true },
-      { name: "Last Active", field: "lastActive", protected: true },
-      { name: "Created At", field: "createdAt", protected: true },
-      { name: "Updated At", field: "updatedAt", protected: true }
-    ]
-  },
-  Vehicles: {
-    collection: "vehicles",
-    idColumnIndex: 1, // Vehicle ID (Col A)
-    headers: [
-      { name: "Vehicle ID", field: "id", protected: true },
-      { name: "Registration Number", field: "registrationNumber", protected: false },
-      { name: "Vehicle Number", field: "vehicleNumber", protected: false },
-      { name: "Vehicle Type", field: "vehicleType", protected: false },
-      { name: "Brand / Make", field: "brand", protected: false },
-      { name: "Model", field: "model", protected: false },
-      { name: "Capacity (Tons)", field: "capacity", protected: false },
-      { name: "Status", field: "status", protected: false },
-      { name: "Assigned Driver ID", field: "driverId", protected: false },
-      { name: "Fuel Level (%)", field: "fuelLevel", protected: false },
-      { name: "Odometer (km)", field: "odometer", protected: true },
-      { name: "Image URL", field: "imageUrl", protected: false },
-      { name: "Last Service Date", field: "lastServiceDate", protected: false },
-      { name: "Next Service Date", field: "nextServiceDate", protected: false },
-      { name: "Insurance Expiry", field: "insuranceExpiry", protected: false },
-      { name: "Current Latitude", field: "currentLatitude", protected: true },
-      { name: "Current Longitude", field: "currentLongitude", protected: true },
-      { name: "Created At", field: "createdAt", protected: true },
-      { name: "Updated At", field: "updatedAt", protected: true }
-    ]
-  },
-  Godowns: {
-    collection: "godowns",
-    idColumnIndex: 1, // Godown ID (Col A)
-    headers: [
-      { name: "Godown ID", field: "id", protected: true },
-      { name: "Godown Name", field: "name", protected: false },
-      { name: "Address", field: "address", protected: false },
-      { name: "City", field: "city", protected: false },
-      { name: "State", field: "state", protected: false },
-      { name: "Pincode (6 Digits)", field: "pincode", protected: false },
-      { name: "Latitude (-90 to 90)", field: "latitude", protected: false },
-      { name: "Longitude (-180 to 180)", field: "longitude", protected: false },
-      { name: "Capacity (Tons)", field: "capacity", protected: false },
-      { name: "Current Stock (Tons)", field: "currentStock", protected: true },
-      { name: "Manager ID", field: "managerId", protected: false },
-      { name: "Manager Name", field: "managerName", protected: false },
-      { name: "Contact Phone", field: "phone", protected: false },
-      { name: "Status", field: "status", protected: false },
-      { name: "Created At", field: "createdAt", protected: true },
-      { name: "Updated At", field: "updatedAt", protected: true }
-    ]
-  },
   Orders: {
     collection: "orders",
     idColumnIndex: 1, // Order ID (Col A)
     headers: [
-      { name: "Order ID", field: "id", protected: true },
-      { name: "Order Number", field: "orderNumber", protected: true },
-      { name: "Customer Name", field: "customerName", protected: false },
-      { name: "Customer Phone", field: "customerPhone", protected: false },
-      { name: "Item Name", field: "itemName", protected: false },
-      { name: "Quantity", field: "quantity", protected: false },
-      { name: "Weight (kg)", field: "weight", protected: false },
-      { name: "Pickup Location / Address", field: "pickupAddress", protected: false },
-      { name: "Pickup Pincode", field: "pickupPincode", protected: false },
-      { name: "Delivery Location / Address", field: "deliveryAddress", protected: false },
-      { name: "Delivery Pincode", field: "deliveryPincode", protected: false },
-      { name: "Status", field: "status", protected: true }, // Protected operational status
-      { name: "Priority", field: "priority", protected: false },
-      { name: "Payment Status", field: "paymentStatus", protected: false },
-      { name: "Payment Method", field: "paymentMethod", protected: false },
-      { name: "Payment Amount (₹)", field: "paymentAmount", protected: false },
-      { name: "Transaction ID", field: "transactionId", protected: false },
-      { name: "Payment Notes", field: "paymentNotes", protected: false },
-      { name: "Remarks / Notes", field: "remarks", protected: false },
-      { name: "Assigned Driver ID", field: "assignedDriverId", protected: false },
-      { name: "Assigned Vehicle ID", field: "assignedVehicleId", protected: false },
-      { name: "Parcel ID", field: "parcelId", protected: true },
-      { name: "QR ID", field: "qrId", protected: true },
-      { name: "OTP Verified", field: "otpVerified", protected: true },
-      { name: "Delivery OTP", field: "deliveryOtp", protected: true },
-      { name: "Delivered At", field: "deliveredAt", protected: true },
-      { name: "Delivered By", field: "deliveredBy", protected: true },
-      { name: "Created By", field: "createdBy", protected: true },
-      { name: "Created At", field: "createdAt", protected: true },
-      { name: "Updated At", field: "updatedAt", protected: true }
+      { name: "Order ID", field: "id", aliases: ["id", "orderId", "_id"], type: "string", protected: true },
+      { name: "Order Number", field: "orderNumber", aliases: ["orderNumber", "order_number"], type: "string", protected: true },
+      { name: "Customer Name", field: "customerName", aliases: ["customerName", "customer_name"], type: "string", protected: false },
+      { name: "Customer Phone", field: "customerPhone", aliases: ["customerPhone", "customer_phone", "phone"], type: "string", protected: false },
+      { name: "Item Name", field: "itemName", aliases: ["itemName", "item_name"], type: "string", protected: false },
+      { name: "Quantity", field: "quantity", aliases: ["quantity", "qty"], type: "number", protected: false },
+      { name: "Weight (kg/tons)", field: "weight", aliases: ["weight", "weightKg", "weight_kg"], type: "number", protected: false },
+      { name: "Pickup Location", field: "pickupLocation", aliases: ["pickupLocation", "pickupAddress", "pickup_location", "pickup_address"], type: "string", protected: false },
+      { name: "Pickup Pincode", field: "pickupPincode", aliases: ["pickupPincode", "pickup_pincode"], type: "string", protected: false },
+      { name: "Delivery Location", field: "deliveryLocation", aliases: ["deliveryLocation", "deliveryAddress", "delivery_location", "delivery_address", "customerAddress"], type: "string", protected: false },
+      { name: "Delivery Pincode", field: "deliveryPincode", aliases: ["deliveryPincode", "delivery_pincode"], type: "string", protected: false },
+      { name: "Status", field: "status", aliases: ["status", "orderStatus", "order_status"], type: "string", protected: true },
+      { name: "Priority", field: "priority", aliases: ["priority"], type: "string", protected: false },
+      { name: "Payment Status", field: "paymentStatus", aliases: ["paymentStatus", "payment_status"], type: "string", protected: false },
+      { name: "Total Amount", field: "totalAmount", aliases: ["totalAmount", "paymentAmount", "total_amount", "payment_amount", "amount"], type: "number", protected: false },
+      { name: "Driver ID", field: "driverId", aliases: ["driverId", "assignedDriverId", "driver_id", "assigned_driver_id"], type: "string", protected: false },
+      { name: "Driver Name", field: "driverName", aliases: ["driverName", "driver_name", "assignedDriverName"], type: "string", protected: true },
+      { name: "Vehicle ID", field: "vehicleId", aliases: ["vehicleId", "assignedVehicleId", "vehicle_id", "assigned_vehicle_id"], type: "string", protected: false },
+      { name: "Vehicle Registration", field: "vehicleRegistration", aliases: ["vehicleRegistration", "vehicle_registration", "registrationNumber", "vehicleNumber"], type: "string", protected: true },
+      { name: "Parcel ID", field: "parcelId", aliases: ["parcelId", "parcel_id"], type: "string", protected: true },
+      { name: "QR ID", field: "qrId", aliases: ["qrId", "qr_id"], type: "string", protected: true },
+      { name: "OTP Verified", field: "otpVerified", aliases: ["otpVerified", "otp_verified"], type: "boolean", protected: true },
+      { name: "Delivered At", field: "deliveredAt", aliases: ["deliveredAt", "delivered_at"], type: "timestamp", protected: true },
+      { name: "Delivered By", field: "deliveredBy", aliases: ["deliveredBy", "delivered_by"], type: "string", protected: true },
+      { name: "Delivery Remarks", field: "deliveryRemarks", aliases: ["deliveryRemarks", "delivery_remarks", "remarks", "notes"], type: "string", protected: false },
+      { name: "Created By", field: "createdBy", aliases: ["createdBy", "created_by"], type: "string", protected: true },
+      { name: "Created By Role", field: "createdByRole", aliases: ["createdByRole", "created_by_role"], type: "string", protected: true },
+      { name: "Source", field: "source", aliases: ["source"], type: "string", protected: true },
+      { name: "Created At", field: "createdAt", aliases: ["createdAt", "created_at"], type: "timestamp", protected: true },
+      { name: "Updated At", field: "updatedAt", aliases: ["updatedAt", "updated_at"], type: "timestamp", protected: true }
     ]
   },
   Dispatches: {
     collection: "dispatches",
     idColumnIndex: 1, // Dispatch ID (Col A)
     headers: [
-      { name: "Dispatch ID", field: "id", protected: true },
-      { name: "Order ID", field: "orderId", protected: true },
-      { name: "Order Number", field: "orderNumber", protected: true },
-      { name: "Customer Name", field: "customerName", protected: true },
-      { name: "Driver ID", field: "driverId", protected: false },
-      { name: "Vehicle ID", field: "vehicleId", protected: false },
-      { name: "Status", field: "status", protected: true },
-      { name: "Priority", field: "priority", protected: false },
-      { name: "Estimated Delivery", field: "estimatedDelivery", protected: false },
-      { name: "Remarks", field: "remarks", protected: false },
-      { name: "Created At", field: "createdAt", protected: true },
-      { name: "Updated At", field: "updatedAt", protected: true }
+      { name: "Dispatch ID", field: "id", aliases: ["id", "dispatchId", "_id"], type: "string", protected: true },
+      { name: "Order ID", field: "orderId", aliases: ["orderId", "order_id"], type: "string", protected: true },
+      { name: "Order Number", field: "orderNumber", aliases: ["orderNumber", "order_number"], type: "string", protected: true },
+      { name: "Customer Name", field: "customerName", aliases: ["customerName", "customer_name"], type: "string", protected: true },
+      { name: "Driver ID", field: "driverId", aliases: ["driverId", "driver_id", "assignedDriverId"], type: "string", protected: false },
+      { name: "Driver Name", field: "driverName", aliases: ["driverName", "driver_name"], type: "string", protected: true },
+      { name: "Vehicle ID", field: "vehicleId", aliases: ["vehicleId", "vehicle_id", "assignedVehicleId"], type: "string", protected: false },
+      { name: "Vehicle Registration", field: "vehicleRegistration", aliases: ["vehicleRegistration", "vehicle_registration", "registrationNumber"], type: "string", protected: true },
+      { name: "Pickup Location", field: "pickupLocation", aliases: ["pickupLocation", "pickupAddress", "pickup_location"], type: "string", protected: true },
+      { name: "Delivery Location", field: "deliveryLocation", aliases: ["deliveryLocation", "deliveryAddress", "delivery_location"], type: "string", protected: true },
+      { name: "Status", field: "status", aliases: ["status", "dispatchStatus"], type: "string", protected: true },
+      { name: "Priority", field: "priority", aliases: ["priority"], type: "string", protected: false },
+      { name: "Estimated Delivery", field: "estimatedDelivery", aliases: ["estimatedDelivery", "estimated_delivery", "estimatedDeliveryDate"], type: "timestamp", protected: false },
+      { name: "Remarks", field: "remarks", aliases: ["remarks", "notes"], type: "string", protected: false },
+      { name: "Created At", field: "createdAt", aliases: ["createdAt", "created_at"], type: "timestamp", protected: true },
+      { name: "Updated At", field: "updatedAt", aliases: ["updatedAt", "updated_at"], type: "timestamp", protected: true }
+    ]
+  },
+  Drivers: {
+    collection: "drivers",
+    idColumnIndex: 1, // Driver ID (Col A)
+    headers: [
+      { name: "Driver ID", field: "id", aliases: ["id", "driverId", "_id"], type: "string", protected: true },
+      { name: "Firebase UID", field: "uid", aliases: ["uid", "userId"], type: "string", protected: true },
+      { name: "Driver Name", field: "name", aliases: ["name", "driverName", "driver_name"], type: "string", protected: false },
+      { name: "Email", field: "email", aliases: ["email"], type: "string", protected: true },
+      { name: "Phone", field: "phone", aliases: ["phone", "phoneNumber", "phone_number"], type: "string", protected: false },
+      { name: "Status", field: "status", aliases: ["status", "driverStatus"], type: "string", protected: false },
+      { name: "License Number", field: "licenseNumber", aliases: ["licenseNumber", "license_number"], type: "string", protected: false },
+      { name: "License Expiry", field: "licenseExpiryDate", aliases: ["licenseExpiryDate", "license_expiry_date", "licenseExpiry"], type: "timestamp", protected: false },
+      { name: "Assigned Vehicle", field: "assignedVehicle", aliases: ["assignedVehicle", "assigned_vehicle", "assignedVehicleId", "assigned_vehicle_id", "vehicleId"], type: "string", protected: false },
+      { name: "Rating", field: "rating", aliases: ["rating"], type: "number", protected: true },
+      { name: "Total Deliveries", field: "totalDeliveries", aliases: ["totalDeliveries", "total_deliveries"], type: "number", protected: true },
+      { name: "Completed Deliveries", field: "completedDeliveries", aliases: ["completedDeliveries", "completed_deliveries"], type: "number", protected: true },
+      { name: "Current Latitude", field: "currentLatitude", aliases: ["currentLatitude", "current_latitude", "latitude", "lat"], type: "number", protected: true },
+      { name: "Current Longitude", field: "currentLongitude", aliases: ["currentLongitude", "current_longitude", "longitude", "lng", "lon"], type: "number", protected: true },
+      { name: "Speed (km/h)", field: "speed", aliases: ["speed"], type: "number", protected: true },
+      { name: "Heading", field: "heading", aliases: ["heading"], type: "number", protected: true },
+      { name: "Last Active", field: "lastActive", aliases: ["lastActive", "last_active"], type: "timestamp", protected: true },
+      { name: "Created At", field: "createdAt", aliases: ["createdAt", "created_at", "joinedDate"], type: "timestamp", protected: true }
+    ]
+  },
+  Vehicles: {
+    collection: "vehicles",
+    idColumnIndex: 1, // Vehicle ID (Col A)
+    headers: [
+      { name: "Vehicle ID", field: "id", aliases: ["id", "vehicleId", "_id"], type: "string", protected: true },
+      { name: "Registration Number", field: "registrationNumber", aliases: ["registrationNumber", "registration_number", "vehicleNumber", "vehicle_number"], type: "string", protected: false },
+      { name: "Vehicle Type", field: "vehicleType", aliases: ["vehicleType", "vehicle_type", "type"], type: "string", protected: false },
+      { name: "Make / Brand", field: "brand", aliases: ["brand", "make", "brandMake", "make_brand"], type: "string", protected: false },
+      { name: "Model", field: "model", aliases: ["model"], type: "string", protected: false },
+      { name: "Capacity", field: "capacity", aliases: ["capacity", "capacityTons"], type: "number", protected: false },
+      { name: "Capacity Unit", field: "capacityUnit", aliases: ["capacityUnit", "capacity_unit", "unit"], type: "string", protected: false },
+      { name: "Status", field: "status", aliases: ["status", "vehicleStatus"], type: "string", protected: false },
+      { name: "Assigned Driver ID", field: "driverId", aliases: ["driverId", "assignedDriverId", "driver_id"], type: "string", protected: false },
+      { name: "Assigned Driver Name", field: "driverName", aliases: ["driverName", "assignedDriverName", "driver_name"], type: "string", protected: false },
+      { name: "Fuel Level (%)", field: "fuelLevel", aliases: ["fuelLevel", "fuel_level"], type: "number", protected: false },
+      { name: "Odometer (km)", field: "odometer", aliases: ["odometer", "mileage"], type: "number", protected: true },
+      { name: "Image URL", field: "imageUrl", aliases: ["imageUrl", "image_url", "profileImage"], type: "string", protected: false },
+      { name: "Last Service Date", field: "lastServiceDate", aliases: ["lastServiceDate", "last_service_date"], type: "timestamp", protected: false },
+      { name: "Next Service Date", field: "nextServiceDate", aliases: ["nextServiceDate", "next_service_date"], type: "timestamp", protected: false },
+      { name: "Insurance Expiry", field: "insuranceExpiry", aliases: ["insuranceExpiry", "insurance_expiry"], type: "timestamp", protected: false },
+      { name: "Created At", field: "createdAt", aliases: ["createdAt", "created_at"], type: "timestamp", protected: true },
+      { name: "Updated At", field: "updatedAt", aliases: ["updatedAt", "updated_at"], type: "timestamp", protected: true }
+    ]
+  },
+  Godowns: {
+    collection: "godowns",
+    idColumnIndex: 1, // Godown ID (Col A)
+    headers: [
+      { name: "Godown ID", field: "id", aliases: ["id", "godownId", "_id"], type: "string", protected: true },
+      { name: "Godown Name", field: "name", aliases: ["name", "godownName", "godown_name"], type: "string", protected: false },
+      { name: "Address", field: "address", aliases: ["address"], type: "string", protected: false },
+      { name: "City", field: "city", aliases: ["city"], type: "string", protected: false },
+      { name: "State", field: "state", aliases: ["state"], type: "string", protected: false },
+      { name: "Pincode", field: "pincode", aliases: ["pincode", "zipCode", "pin_code"], type: "string", protected: false },
+      { name: "Latitude", field: "latitude", aliases: ["latitude", "lat"], type: "number", protected: false },
+      { name: "Longitude", field: "longitude", aliases: ["longitude", "lng", "lon"], type: "number", protected: false },
+      { name: "Capacity (Tons)", field: "capacity", aliases: ["capacity", "capacityTons"], type: "number", protected: false },
+      { name: "Current Stock (Tons)", field: "currentStock", aliases: ["currentStock", "current_stock", "stock"], type: "number", protected: true },
+      { name: "Manager ID", field: "managerId", aliases: ["managerId", "manager_id"], type: "string", protected: false },
+      { name: "Manager Name", field: "managerName", aliases: ["managerName", "manager_name"], type: "string", protected: false },
+      { name: "Contact Phone", field: "phone", aliases: ["phone", "contactPhone", "contact_phone"], type: "string", protected: false },
+      { name: "Status", field: "status", aliases: ["status"], type: "string", protected: false },
+      { name: "Created At", field: "createdAt", aliases: ["createdAt", "created_at"], type: "timestamp", protected: true },
+      { name: "Updated At", field: "updatedAt", aliases: ["updatedAt", "updated_at"], type: "timestamp", protected: true }
+    ]
+  },
+  Admins: {
+    collection: "admins",
+    idColumnIndex: 1, // Admin ID (Col A)
+    headers: [
+      { name: "Admin ID", field: "adminId", aliases: ["adminId", "admin_id", "id", "_id"], type: "string", protected: true },
+      { name: "Firebase UID", field: "uid", aliases: ["uid", "userId"], type: "string", protected: true },
+      { name: "Admin Name", field: "name", aliases: ["name", "adminName", "admin_name"], type: "string", protected: false },
+      { name: "Email", field: "email", aliases: ["email"], type: "string", protected: true },
+      { name: "Phone", field: "phone", aliases: ["phone", "phoneNumber"], type: "string", protected: false },
+      { name: "Role", field: "role", aliases: ["role", "adminRole"], type: "string", protected: true },
+      { name: "Status", field: "status", aliases: ["status"], type: "string", protected: false },
+      { name: "Last Login", field: "lastLogin", aliases: ["lastLogin", "last_login", "lastSignInTime", "last_sign_in_time"], type: "timestamp", protected: true },
+      { name: "Profile Image URL", field: "profileImage", aliases: ["profileImage", "profile_image", "imageUrl"], type: "string", protected: false }
     ]
   }
 };
 
 /**
  * ----------------------------------------------------------------------------
- * 7. STRICT DATA VALIDATION ENGINE (SHEET → FIREBASE)
+ * 7. FIELD VALUE EXTRACTOR (MULTI-ALIAS & CASING RESOLVER)
+ * ----------------------------------------------------------------------------
+ */
+function extractFieldValue(docId, f, headerDef, doc) {
+  var aliases = headerDef.aliases || [headerDef.field];
+  var rawVal = null;
+
+  for (var i = 0; i < aliases.length; i++) {
+    var key = aliases[i];
+    if (f[key] !== undefined && f[key] !== null) {
+      rawVal = f[key];
+      break;
+    }
+  }
+
+  // Handle special ID fallbacks
+  if (rawVal === null || rawVal === undefined) {
+    if (headerDef.field === "id" || headerDef.field === "adminId") {
+      return docId;
+    }
+    return "";
+  }
+
+  // Convert Firestore types
+  if (headerDef.type === "timestamp" || rawVal.timestampValue !== undefined) {
+    return getTimestamp(rawVal);
+  }
+  if (headerDef.type === "number" || rawVal.doubleValue !== undefined || rawVal.integerValue !== undefined) {
+    var num = getNumber(rawVal);
+    return isNaN(num) ? "" : num;
+  }
+  if (headerDef.type === "boolean" || rawVal.booleanValue !== undefined) {
+    return getBoolean(rawVal);
+  }
+  return getString(rawVal);
+}
+
+/**
+ * ----------------------------------------------------------------------------
+ * 8. STRICT DATA VALIDATION ENGINE (SHEET → FIREBASE)
  * ----------------------------------------------------------------------------
  */
 function validateFieldEdit(collectionName, fieldName, value) {
@@ -518,7 +577,6 @@ function validateFieldEdit(collectionName, fieldName, value) {
   switch (fieldName) {
     case "phone":
     case "customerPhone":
-      // Valid phone: 10 to 15 digits, optional leading +
       if (!/^\+?[0-9\s-]{10,15}$/.test(strVal)) {
         return { valid: false, error: "Invalid Phone Number. Must contain 10-15 digits." };
       }
@@ -555,6 +613,7 @@ function validateFieldEdit(collectionName, fieldName, value) {
     case "capacity":
     case "weight":
     case "quantity":
+    case "totalAmount":
     case "paymentAmount":
       var num = parseFloat(strVal);
       if (isNaN(num) || num < 0) {
@@ -577,14 +636,6 @@ function validateFieldEdit(collectionName, fieldName, value) {
       }
       return { valid: true, sanitizedValue: normalizedPayment };
 
-    case "paymentMethod":
-      var validMethods = ["CASH", "UPI", "CARD", "BANK_TRANSFER", "COD", "OTHER"];
-      var normalizedMethod = strVal.toUpperCase().replace(/\s+/g, "_");
-      if (validMethods.indexOf(normalizedMethod) === -1) {
-        return { valid: false, error: "Invalid Payment Method: " + strVal + ". Allowed: " + validMethods.join(", ") };
-      }
-      return { valid: true, sanitizedValue: normalizedMethod };
-
     default:
       return { valid: true, sanitizedValue: strVal };
   }
@@ -592,15 +643,13 @@ function validateFieldEdit(collectionName, fieldName, value) {
 
 /**
  * ----------------------------------------------------------------------------
- * 8. EVENT-DRIVEN TWO-WAY SYNC TRIGGER (GOOGLE SHEETS → FIRESTORE)
+ * 9. EVENT-DRIVEN TWO-WAY SYNC TRIGGER (GOOGLE SHEETS → FIRESTORE)
  * ----------------------------------------------------------------------------
- * Installable onEdit trigger captures user edits in the Sheet, validates data,
- * checks field permissions, and patches Firestore.
  */
 function onEditTrigger(e) {
   if (!e || !e.range) return;
 
-  // 1. Loop Prevention: Ignore edits made programmatically by the sync engine
+  // 1. Loop Prevention
   if (isProgrammaticLockActive()) {
     Logger.log("Skipping onEdit: Programmatic mutation lock is active.");
     return;
@@ -632,26 +681,24 @@ function onEditTrigger(e) {
   var oldValue = e.oldValue !== undefined ? e.oldValue : "";
   var newValue = range.getValue();
 
-  // 2. Protected Column Guard: Revert unauthorized edits to critical live operational fields
+  // 2. Protected Column Guard
   if (colHeader.protected) {
     Logger.log("⚠️ Protected field edit rejected: " + colHeader.name + " on " + docId);
     
-    // Fetch live Firestore value to restore
     try {
       var liveDoc = fetchSingleFirestoreDocument(schema.collection, docId);
-      var correctVal = liveDoc && liveDoc.fields[colHeader.field] ? getString(liveDoc.fields[colHeader.field]) : oldValue;
+      var correctVal = liveDoc ? extractFieldValue(docId, liveDoc.fields, colHeader, liveDoc) : oldValue;
       
       setProgrammaticLock(5);
       range.setValue(correctVal);
       clearProgrammaticLock();
 
       logSyncOperation(
-        "SHEET_EDIT",
         schema.collection,
         docId,
-        "REJECTED_PROTECTED_FIELD",
-        "Field '" + colHeader.name + "' is READ-ONLY. Live operational data must be updated via RouteCJ Apps.",
-        Session.getActiveUser().getEmail()
+        "SHEET_EDIT",
+        "REJECTED",
+        "Field '" + colHeader.name + "' is READ-ONLY. Live operational data is managed via RouteCJ Apps."
       );
 
       SpreadsheetApp.getActiveSpreadsheet().toast(
@@ -671,23 +718,18 @@ function onEditTrigger(e) {
     Logger.log("❌ Validation failed on " + colHeader.name + ": " + validation.error);
     
     setProgrammaticLock(5);
-    range.setValue(oldValue); // Revert invalid change
+    range.setValue(oldValue); // Revert
     clearProgrammaticLock();
 
     logSyncOperation(
-      "SHEET_EDIT",
       schema.collection,
       docId,
-      "VALIDATION_ERROR",
-      validation.error + " (Attempted: '" + newValue + "')",
-      Session.getActiveUser().getEmail()
+      "VALIDATION",
+      "REJECTED",
+      validation.error + " (Attempted: '" + newValue + "')"
     );
 
-    SpreadsheetApp.getActiveSpreadsheet().toast(
-      validation.error,
-      "❌ Validation Error",
-      6
-    );
+    SpreadsheetApp.getActiveSpreadsheet().toast(validation.error, "❌ Validation Error", 6);
     return;
   }
 
@@ -698,7 +740,7 @@ function onEditTrigger(e) {
 
     patchFirestoreDocument(schema.collection, docId, updatePayload, [colHeader.field]);
 
-    // Update the 'Updated At' timestamp in Sheet
+    // Update the 'Updated At' timestamp in Sheet if present
     var updatedColIdx = schema.headers.findIndex(function(h) { return h.field === "updatedAt"; });
     if (updatedColIdx !== -1) {
       setProgrammaticLock(5);
@@ -709,43 +751,33 @@ function onEditTrigger(e) {
     }
 
     logSyncOperation(
-      "SHEET → FIREBASE",
       schema.collection,
       docId,
+      "SHEET → FIREBASE",
       "SUCCESS",
-      "Updated '" + colHeader.field + "' to '" + validation.sanitizedValue + "'",
-      Session.getActiveUser().getEmail()
+      "Updated '" + colHeader.field + "' to '" + validation.sanitizedValue + "'"
     );
 
-    SpreadsheetApp.getActiveSpreadsheet().toast(
-      "Updated " + schema.collection + "/" + docId + " in Firestore.",
-      "✅ Synced to Firebase",
-      3
-    );
+    SpreadsheetApp.getActiveSpreadsheet().toast("Updated " + schema.collection + "/" + docId + " in Firestore.", "✅ Synced to Firebase", 3);
 
   } catch (syncErr) {
     Logger.log("❌ Firestore PATCH error: " + syncErr.message);
 
     logSyncOperation(
-      "SHEET → FIREBASE",
       schema.collection,
       docId,
+      "SHEET → FIREBASE",
       "ERROR",
-      syncErr.message,
-      Session.getActiveUser().getEmail()
+      syncErr.message
     );
 
-    SpreadsheetApp.getActiveSpreadsheet().toast(
-      "Sync to Firebase failed: " + syncErr.message,
-      "❌ Sync Error",
-      6
-    );
+    SpreadsheetApp.getActiveSpreadsheet().toast("Sync to Firebase failed: " + syncErr.message, "❌ Sync Error", 6);
   }
 }
 
 /**
  * ----------------------------------------------------------------------------
- * 9. FIREBASE → GOOGLE SHEETS SYNCHRONIZATION (FULL SYNC ENGINE)
+ * 10. FIREBASE → GOOGLE SHEETS SYNCHRONIZATION ENGINE
  * ----------------------------------------------------------------------------
  */
 function syncAllCollections() {
@@ -756,140 +788,278 @@ function syncAllCollections() {
   setProgrammaticLock(180); // Lock during programmatic batch writes
 
   try {
+    // 1. Sync standard mapped collections
     for (var tabName in SCHEMA_DEFINITIONS) {
       var schema = SCHEMA_DEFINITIONS[tabName];
-      var count = syncCollectionToSheet(schema);
+      var count = syncCollectionToSheet(schema, tabName);
       totalRecords += count;
       summaryParts.push(tabName + ": " + count);
     }
 
-    // Refresh Reports tab
-    updateReportsTab();
+    // 2. Refresh live Tracking tab
+    var trackingCount = updateTrackingTab();
+    summaryParts.push("Tracking: " + trackingCount);
 
     var elapsed = ((new Date().getTime() - startTime.getTime()) / 1000).toFixed(1);
-    var summary = "Full Sync Completed: " + totalRecords + " records in " + elapsed + "s (" + summaryParts.join(", ") + ")";
+    var summary = "Full Sync Completed: " + totalRecords + " total records in " + elapsed + "s (" + summaryParts.join(", ") + ")";
     
-    logSyncOperation("FIREBASE → SHEET", "ALL_COLLECTIONS", "FULL_SYNC", "SUCCESS", summary, "SYSTEM_TRIGGER");
-    Logger.log(summary);
+    logSyncOperation("ALL_COLLECTIONS", "FULL_SYNC", "FIREBASE → SHEET", "SUCCESS", summary);
+    Logger.log("✅ " + summary);
 
     return { success: true, count: totalRecords, summary: summary };
 
   } catch (e) {
     Logger.log("Global Sync Error: " + e.message);
-    logSyncOperation("FIREBASE → SHEET", "ALL_COLLECTIONS", "FULL_SYNC", "ERROR", e.message, "SYSTEM_TRIGGER");
+    logSyncOperation("ALL_COLLECTIONS", "FULL_SYNC", "FIREBASE → SHEET", "ERROR", e.message);
     return { success: false, error: e.message };
   } finally {
     clearProgrammaticLock();
   }
 }
 
-function syncCollectionToSheet(schema) {
+function syncCollectionToSheet(schema, tabName) {
   var docs = fetchFirestoreDocuments(schema.collection);
-  var sheet = getSheetOrInit(schema);
-  var indexMap = buildDocumentIndexMap(sheet, schema.idColumnIndex);
+  var sheet = getSheetOrInit(tabName, schema);
+  var indexMap = buildDocumentIndexMap(sheet, schema);
   var count = 0;
+
+  // Deduplication map for in-memory merging (especially Admins by UID and adminId)
+  var processedKeys = {};
 
   for (var i = 0; i < docs.length; i++) {
     var doc = docs[i];
     var docId = doc.id;
     var f = doc.fields || {};
 
+    // Deduplication key
+    var dedupKey = docId;
+    if (tabName === SHEET_TABS.ADMINS) {
+      var adminId = getString(f["adminId"]) || getString(f["id"]);
+      var email = getString(f["email"]).toLowerCase();
+      var uid = getString(f["uid"]);
+      dedupKey = adminId || uid || email || docId;
+      if (processedKeys[dedupKey]) {
+        continue; // Skip duplicate admin entry
+      }
+      processedKeys[dedupKey] = true;
+      if (adminId) processedKeys[adminId] = true;
+      if (uid) processedKeys[uid] = true;
+    }
+
     var rowValues = schema.headers.map(function(header) {
-      return extractFieldValue(docId, f, header.field, doc);
+      return extractFieldValue(docId, f, header, doc);
     });
 
-    upsertSheetRow(sheet, indexMap, schema.idColumnIndex, docId, rowValues);
+    upsertSheetRow(sheet, indexMap, schema, docId, dedupKey, rowValues);
     count++;
   }
 
   return count;
 }
 
-function extractFieldValue(docId, f, fieldName, doc) {
-  if (fieldName === "id" || fieldName === "adminId") return docId;
-  
-  var val = f[fieldName];
-  if (!val) {
-    // Fallback lookups for legacy aliases
-    if (fieldName === "pickupAddress") val = f["pickupLocation"] || f["pickupAddress"];
-    if (fieldName === "deliveryAddress") val = f["deliveryLocation"] || f["deliveryAddress"];
-    if (fieldName === "assignedDriverId") val = f["driverId"] || f["assignedDriverId"];
-    if (fieldName === "assignedVehicleId") val = f["vehicleId"] || f["assignedVehicleId"];
-    if (fieldName === "brand") val = f["make"] || f["brand"];
-  }
-
-  if (!val) return "";
-
-  if (val.timestampValue !== undefined) {
-    return getTimestamp(val);
-  }
-  if (val.doubleValue !== undefined || val.integerValue !== undefined) {
-    return getNumber(val);
-  }
-  if (val.booleanValue !== undefined) {
-    return val.booleanValue ? "TRUE" : "FALSE";
-  }
-  return getString(val);
-}
-
 /**
  * ----------------------------------------------------------------------------
- * 10. ROW UPSERT & DUPLICATE PROTECTION
+ * 11. ROW UPSERT & DEDUPLICATION ENGINE
  * ----------------------------------------------------------------------------
  */
-function buildDocumentIndexMap(sheet, idColIndex) {
+function buildDocumentIndexMap(sheet, schema) {
   var indexMap = {};
   var lastRow = sheet.getLastRow();
   if (lastRow <= 1) return indexMap;
 
+  var idColIndex = schema.idColumnIndex || 1;
   var idValues = sheet.getRange(2, idColIndex, lastRow - 1, 1).getValues();
+  
   for (var i = 0; i < idValues.length; i++) {
     var id = String(idValues[i][0]).trim();
     if (id) {
       indexMap[id] = i + 2; // Actual row number
     }
   }
+
+  // For Admins, also index by Firebase UID (Col B) if available
+  if (schema.collection === "admins" && schema.headers.length >= 2) {
+    var uidValues = sheet.getRange(2, 2, lastRow - 1, 1).getValues();
+    for (var j = 0; j < uidValues.length; j++) {
+      var uid = String(uidValues[j][0]).trim();
+      if (uid && !indexMap[uid]) {
+        indexMap[uid] = j + 2;
+      }
+    }
+  }
+
   return indexMap;
 }
 
-function upsertSheetRow(sheet, indexMap, idColIndex, docId, rowValues) {
-  if (indexMap[docId]) {
-    var targetRow = indexMap[docId];
+function upsertSheetRow(sheet, indexMap, schema, docId, dedupKey, rowValues) {
+  var targetRow = indexMap[docId] || indexMap[dedupKey];
+  
+  if (targetRow && targetRow <= sheet.getLastRow()) {
     sheet.getRange(targetRow, 1, 1, rowValues.length).setValues([rowValues]);
   } else {
     sheet.appendRow(rowValues);
     var newRow = sheet.getLastRow();
     indexMap[docId] = newRow;
+    if (dedupKey) indexMap[dedupKey] = newRow;
   }
 }
 
 /**
  * ----------------------------------------------------------------------------
- * 11. AUDIT LOGGING ENGINE (SyncLog TAB)
+ * 12. LIVE TRACKING TAB INTELLIGENCE AGGREGATOR
  * ----------------------------------------------------------------------------
  */
-function logSyncOperation(source, collection, documentId, status, message, user) {
+function updateTrackingTab() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var trackingSheet = ss.getSheetByName(SHEET_TABS.TRACKING);
+  if (!trackingSheet) {
+    trackingSheet = ss.insertSheet(SHEET_TABS.TRACKING);
+  }
+
+  // Fetch all related collections
+  var dispatches = fetchFirestoreDocuments("dispatches");
+  var drivers = fetchFirestoreDocuments("drivers");
+  var vehicles = fetchFirestoreDocuments("vehicles");
+  var orders = fetchFirestoreDocuments("orders");
+
+  var driverMap = {};
+  drivers.forEach(function(d) { driverMap[d.id] = d.fields || {}; });
+
+  var vehicleMap = {};
+  vehicles.forEach(function(v) { vehicleMap[v.id] = v.fields || {}; });
+
+  var orderMap = {};
+  orders.forEach(function(o) { orderMap[o.id] = o.fields || {}; });
+
+  var trackingRows = [];
+
+  for (var i = 0; i < dispatches.length; i++) {
+    var d = dispatches[i];
+    var df = d.fields || {};
+
+    var dispatchId = d.id;
+    var orderId = getString(df["orderId"]);
+    var orderNumber = getString(df["orderNumber"]);
+    var customerName = getString(df["customerName"]);
+    var driverId = getString(df["driverId"]);
+    var driverName = getString(df["driverName"]);
+    var vehicleId = getString(df["vehicleId"]);
+    var vehicleReg = getString(df["vehicleRegistration"]);
+    var pickupLoc = getString(df["pickupLocation"]);
+    var delLoc = getString(df["deliveryLocation"]);
+    var status = getString(df["status"]) || "PENDING";
+
+    var drv = driverMap[driverId] || {};
+    var veh = vehicleMap[vehicleId] || {};
+    var ord = orderMap[orderId] || {};
+
+    var driverPhone = getString(drv["phone"]) || getString(df["driverPhone"]);
+    var vehicleType = getString(veh["vehicleType"]) || getString(df["vehicleType"]) || "VAN";
+    var curLat = getNumber(drv["currentLatitude"]) || getNumber(df["currentLatitude"]) || 0;
+    var curLng = getNumber(drv["currentLongitude"]) || getNumber(df["currentLongitude"]) || 0;
+    var speed = getNumber(drv["speed"]) || 0;
+    var heading = getNumber(drv["heading"]) || 0;
+    var accuracy = getNumber(drv["accuracy"]) || 0;
+    var lastActive = getTimestamp(drv["lastActive"]) || getTimestamp(df["updatedAt"]);
+    
+    // Check staleness (stale if > 5 min without update)
+    var isStale = true;
+    if (drv["lastActive"] && drv["lastActive"].timestampValue) {
+      var diffMs = Date.now() - new Date(drv["lastActive"].timestampValue).getTime();
+      isStale = diffMs > (5 * 60 * 1000);
+    }
+
+    var progress = 0.25;
+    var eta = "Calculating...";
+    if (status === "DELIVERED") {
+      progress = 1.0;
+      eta = "Delivered";
+    } else if (status === "IN_TRANSIT" || status === "TRIP_STARTED") {
+      progress = 0.65;
+      eta = "In Transit (~30m)";
+    } else if (status === "DISPATCH_CONFIRMED") {
+      progress = 0.25;
+      eta = "In Transit (~45m)";
+    }
+
+    var updatedAt = getTimestamp(df["updatedAt"]) || Utilities.formatDate(new Date(), Session.getScriptTimeZone() || "GMT+05:30", "yyyy-MM-dd HH:mm:ss");
+
+    trackingRows.push([
+      dispatchId,
+      orderId,
+      orderNumber,
+      customerName,
+      driverId,
+      driverName,
+      driverPhone,
+      vehicleId,
+      vehicleReg,
+      vehicleType,
+      pickupLoc,
+      delLoc,
+      status,
+      curLat,
+      curLng,
+      speed,
+      heading,
+      accuracy,
+      progress,
+      eta,
+      lastActive,
+      isStale,
+      updatedAt
+    ]);
+  }
+
+  // Set Tracking Tab Headers & Values
+  var trackingHeaders = [
+    "Dispatch ID", "Order ID", "Order Number", "Customer Name", "Driver ID", "Driver Name",
+    "Driver Phone", "Vehicle ID", "Vehicle Registration", "Vehicle Type", "Pickup Location",
+    "Delivery Location", "Trip Status", "Current Latitude", "Current Longitude", "Speed (km/h)",
+    "Heading", "Accuracy (m)", "Progress (%)", "ETA", "Last Location Update", "Is Stale", "Updated At"
+  ];
+
+  if (trackingSheet.getLastRow() > 1) {
+    trackingSheet.getRange(2, 1, trackingSheet.getLastRow() - 1, trackingHeaders.length).clearContent();
+  }
+
+  trackingSheet.getRange(1, 1, 1, trackingHeaders.length).setValues([trackingHeaders]);
+  trackingSheet.getRange(1, 1, 1, trackingHeaders.length).setFontWeight("bold").setBackground("#0F172A").setFontColor("#FFFFFF");
+  trackingSheet.setFrozenRows(1);
+
+  if (trackingRows.length > 0) {
+    trackingSheet.getRange(2, 1, trackingRows.length, trackingHeaders.length).setValues(trackingRows);
+  }
+
+  return trackingRows.length;
+}
+
+/**
+ * ----------------------------------------------------------------------------
+ * 13. AUDIT LOGGING ENGINE (Backup Log TAB)
+ * ----------------------------------------------------------------------------
+ */
+function logSyncOperation(collection, documentIdScope, operation, status, summaryDetails) {
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     if (!ss) return;
 
-    var logSheet = ss.getSheetByName(SHEET_TABS.SYNC_LOG);
+    var logSheet = ss.getSheetByName(SHEET_TABS.BACKUP_LOG);
     if (!logSheet) {
-      logSheet = ss.insertSheet(SHEET_TABS.SYNC_LOG);
-      logSheet.appendRow(["Timestamp", "Source", "Collection", "Document ID", "Status", "Message", "User"]);
-      logSheet.getRange("A1:G1").setFontWeight("bold").setBackground("#0F172A").setFontColor("#FFFFFF");
+      logSheet = ss.insertSheet(SHEET_TABS.BACKUP_LOG);
+      logSheet.appendRow(["Timestamp", "Collection", "Document ID / Scope", "Operation", "Status", "Summary / Details"]);
+      logSheet.getRange("A1:F1").setFontWeight("bold").setBackground("#0F172A").setFontColor("#FFFFFF");
       logSheet.setFrozenRows(1);
     }
 
     var timestamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone() || "GMT+05:30", "yyyy-MM-dd HH:mm:ss");
     logSheet.appendRow([
       timestamp,
-      source || "SYNC",
       collection || "SYSTEM",
-      documentId || "NONE",
+      documentIdScope || "ALL",
+      operation || "SYNC",
       status || "INFO",
-      message || "",
-      user || "SYSTEM"
+      summaryDetails || ""
     ]);
 
     // Trim log to last 1000 entries
@@ -898,26 +1068,122 @@ function logSyncOperation(source, collection, documentId, status, message, user)
       logSheet.deleteRows(2, lastRow - 1001);
     }
   } catch (e) {
-    Logger.log("Failed to write to SyncLog: " + e.message);
+    Logger.log("Failed to write to Backup Log: " + e.message);
   }
 }
 
 /**
  * ----------------------------------------------------------------------------
- * 12. INITIAL DATA MIGRATION ENGINE
+ * 14. EMPTY FIELD DIAGNOSTIC AUDIT TOOL
+ * ----------------------------------------------------------------------------
+ */
+function runEmptyFieldAudit() {
+  var startTime = new Date();
+  Logger.log("🔍 Starting RouteCJ Empty Field Audit...");
+
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var auditTabName = "Audit Report";
+  var auditSheet = ss.getSheetByName(auditTabName);
+  if (!auditSheet) {
+    auditSheet = ss.insertSheet(auditTabName);
+  }
+  auditSheet.clear();
+
+  var auditHeaders = ["Collection", "Document ID", "Firebase Field", "Sheet Column", "Firebase Value", "Sheet Value", "Status"];
+  auditSheet.appendRow(auditHeaders);
+  auditSheet.getRange("A1:G1").setFontWeight("bold").setBackground("#0F172A").setFontColor("#38BDF8");
+  auditSheet.setFrozenRows(1);
+
+  var auditRows = [];
+  var mismatchCount = 0;
+  var totalFieldsChecked = 0;
+
+  for (var tabName in SCHEMA_DEFINITIONS) {
+    var schema = SCHEMA_DEFINITIONS[tabName];
+    var docs = fetchFirestoreDocuments(schema.collection);
+    var sheet = ss.getSheetByName(tabName);
+    var indexMap = sheet ? buildDocumentIndexMap(sheet, schema) : {};
+
+    for (var i = 0; i < docs.length; i++) {
+      var doc = docs[i];
+      var docId = doc.id;
+      var f = doc.fields || {};
+
+      var targetRow = indexMap[docId];
+      var sheetRowValues = [];
+      if (targetRow && sheet) {
+        sheetRowValues = sheet.getRange(targetRow, 1, 1, schema.headers.length).getValues()[0];
+      }
+
+      for (var h = 0; h < schema.headers.length; h++) {
+        var header = schema.headers[h];
+        totalFieldsChecked++;
+
+        var firestoreVal = extractFieldValue(docId, f, header, doc);
+        var sheetVal = sheetRowValues.length > h ? sheetRowValues[h] : "";
+
+        var strFirestore = String(firestoreVal !== null && firestoreVal !== undefined ? firestoreVal : "").trim();
+        var strSheet = String(sheetVal !== null && sheetVal !== undefined ? sheetVal : "").trim();
+
+        var status = "MATCH";
+        if (strFirestore === "" && strSheet === "") {
+          status = "EMPTY_IN_BOTH";
+        } else if (strFirestore !== "" && strSheet === "") {
+          status = "MISSING_IN_SHEET";
+          mismatchCount++;
+        } else if (strFirestore === "" && strSheet !== "") {
+          status = "SHEET_ONLY";
+        } else if (strFirestore !== strSheet) {
+          // Check if timestamp formatting difference
+          status = "VALUE_DIFF";
+          mismatchCount++;
+        }
+
+        if (status !== "MATCH" && status !== "EMPTY_IN_BOTH") {
+          auditRows.push([
+            schema.collection,
+            docId,
+            header.field,
+            header.name,
+            strFirestore,
+            strSheet,
+            status
+          ]);
+        }
+      }
+    }
+  }
+
+  if (auditRows.length > 0) {
+    auditSheet.getRange(2, 1, auditRows.length, auditHeaders.length).setValues(auditRows);
+  }
+
+  var elapsed = ((new Date().getTime() - startTime.getTime()) / 1000).toFixed(1);
+  var report = "Audit Completed in " + elapsed + "s. Checked " + totalFieldsChecked + " fields across all collections. Found " + mismatchCount + " mismatches/missing values.";
+  
+  Logger.log("✅ " + report);
+  SpreadsheetApp.getActiveSpreadsheet().toast(report, "🔍 Audit Complete", 8);
+  logSyncOperation("ALL_COLLECTIONS", "AUDIT", "EMPTY_FIELD_AUDIT", "SUCCESS", report);
+
+  return report;
+}
+
+/**
+ * ----------------------------------------------------------------------------
+ * 15. INITIAL BACKFILL & MIGRATION ENGINE
  * ----------------------------------------------------------------------------
  */
 function runInitialDataMigration() {
   var startTime = new Date();
-  Logger.log("🚀 Starting RouteCJ Initial Data Migration...");
+  Logger.log("🚀 Starting RouteCJ Initial Data Migration & Backfill...");
 
   setupSheets();
   var syncResult = syncAllCollections();
 
   var elapsed = ((new Date().getTime() - startTime.getTime()) / 1000).toFixed(1);
-  var report = "Migration Completed in " + elapsed + "s. " + syncResult.summary;
+  var report = "Migration & Backfill Completed in " + elapsed + "s. " + syncResult.summary;
 
-  logSyncOperation("MIGRATION", "ALL", "INITIAL_IMPORT", "SUCCESS", report, Session.getActiveUser().getEmail());
+  logSyncOperation("ALL_COLLECTIONS", "INITIAL_IMPORT", "MIGRATION", "SUCCESS", report);
   
   SpreadsheetApp.getActiveSpreadsheet().toast(report, "🚀 Migration Complete", 8);
   Logger.log("✅ " + report);
@@ -926,16 +1192,12 @@ function runInitialDataMigration() {
 
 /**
  * ----------------------------------------------------------------------------
- * 13. SHEET SETUP, STYLING, & VISUAL PROTECTION
+ * 16. SHEET INITIALIZATION & STYLING
  * ----------------------------------------------------------------------------
  */
 function setupSheets() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   if (!ss) return;
-
-  try {
-    ss.rename("ROUTECJ DATABASE BACKUP");
-  } catch (e) {}
 
   for (var tabName in SCHEMA_DEFINITIONS) {
     var schema = SCHEMA_DEFINITIONS[tabName];
@@ -944,107 +1206,60 @@ function setupSheets() {
       sheet = ss.insertSheet(tabName);
     }
 
-    // Set header labels
-    var headerRow = schema.headers.map(function(h) {
-      return h.protected ? (h.name + " 🔒") : h.name;
-    });
-
+    var headerRow = schema.headers.map(function(h) { return h.name; });
     sheet.getRange(1, 1, 1, headerRow.length).setValues([headerRow]);
     sheet.setFrozenRows(1);
 
-    // Style Header Row
     var headerRange = sheet.getRange(1, 1, 1, headerRow.length);
-    headerRange.setFontWeight("bold");
-    headerRange.setBackground("#0F172A");
-    headerRange.setFontColor("#FFFFFF");
+    headerRange.setFontWeight("bold").setBackground("#0F172A").setFontColor("#FFFFFF");
 
-    // Color code protected vs editable header columns
     for (var c = 0; c < schema.headers.length; c++) {
       var h = schema.headers[c];
       var cell = sheet.getRange(1, c + 1);
       if (h.protected) {
-        cell.setFontColor("#94A3B8"); // Muted color with lock icon
+        cell.setFontColor("#94A3B8"); // Gray for protected
       } else {
-        cell.setFontColor("#38BDF8"); // Vibrant cyan for editable fields
+        cell.setFontColor("#38BDF8"); // Cyan for editable
       }
     }
   }
 
-  // Create Reports Tab
-  var reportsSheet = ss.getSheetByName(SHEET_TABS.REPORTS);
-  if (!reportsSheet) {
-    reportsSheet = ss.insertSheet(SHEET_TABS.REPORTS);
-  }
-  updateReportsTab();
+  // Ensure Tracking tab exists
+  updateTrackingTab();
 
-  // Create SyncLog Tab
-  var logSheet = ss.getSheetByName(SHEET_TABS.SYNC_LOG);
+  // Ensure Backup Log tab exists
+  var logSheet = ss.getSheetByName(SHEET_TABS.BACKUP_LOG);
   if (!logSheet) {
-    logSheet = ss.insertSheet(SHEET_TABS.SYNC_LOG);
-    logSheet.appendRow(["Timestamp", "Source", "Collection", "Document ID", "Status", "Message", "User"]);
-    logSheet.getRange("A1:G1").setFontWeight("bold").setBackground("#0F172A").setFontColor("#FFFFFF");
+    logSheet = ss.insertSheet(SHEET_TABS.BACKUP_LOG);
+    logSheet.appendRow(["Timestamp", "Collection", "Document ID / Scope", "Operation", "Status", "Summary / Details"]);
+    logSheet.getRange("A1:F1").setFontWeight("bold").setBackground("#0F172A").setFontColor("#FFFFFF");
     logSheet.setFrozenRows(1);
   }
 
-  Logger.log("✅ All RouteCJ sheets setup and styled successfully!");
+  Logger.log("✅ All RouteCJ sheets initialized successfully!");
 }
 
-function getSheetOrInit(schema) {
+function getSheetOrInit(tabName, schema) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName(schema.headers ? getTabNameBySchema(schema) : schema);
+  var sheet = ss.getSheetByName(tabName);
   if (!sheet) {
     setupSheets();
-    sheet = ss.getSheetByName(schema.headers ? getTabNameBySchema(schema) : schema);
+    sheet = ss.getSheetByName(tabName);
   }
   return sheet;
 }
 
-function getTabNameBySchema(schema) {
-  for (var name in SCHEMA_DEFINITIONS) {
-    if (SCHEMA_DEFINITIONS[name] === schema) return name;
-  }
-  return schema.collection;
-}
-
-function updateReportsTab() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var reportsSheet = ss.getSheetByName(SHEET_TABS.REPORTS);
-  if (!reportsSheet) return;
-
-  var ordersSheet = ss.getSheetByName(SHEET_TABS.ORDERS);
-  var driversSheet = ss.getSheetByName(SHEET_TABS.DRIVERS);
-  var vehiclesSheet = ss.getSheetByName(SHEET_TABS.VEHICLES);
-  var godownsSheet = ss.getSheetByName(SHEET_TABS.GODOWNS);
-
-  var orderCount = ordersSheet ? Math.max(0, ordersSheet.getLastRow() - 1) : 0;
-  var driverCount = driversSheet ? Math.max(0, driversSheet.getLastRow() - 1) : 0;
-  var vehicleCount = vehiclesSheet ? Math.max(0, vehiclesSheet.getLastRow() - 1) : 0;
-  var godownCount = godownsSheet ? Math.max(0, godownsSheet.getLastRow() - 1) : 0;
-
-  reportsSheet.clear();
-  reportsSheet.appendRow(["RouteCJ Logistics — Real-Time Fleet & Operations Intelligence"]);
-  reportsSheet.appendRow(["Last Synced At", Utilities.formatDate(new Date(), Session.getScriptTimeZone() || "GMT+05:30", "yyyy-MM-dd HH:mm:ss")]);
-  reportsSheet.appendRow([]);
-  reportsSheet.appendRow(["CORE OPERATIONAL METRICS", "TOTAL COUNT"]);
-  reportsSheet.appendRow(["Total Managed Orders", orderCount]);
-  reportsSheet.appendRow(["Active Drivers in Fleet", driverCount]);
-  reportsSheet.appendRow(["Registered Vehicles", vehicleCount]);
-  reportsSheet.appendRow(["Operational Godowns / Hubs", godownCount]);
-
-  reportsSheet.getRange("A1:B1").setFontWeight("bold").setFontSize(14).setBackground("#0F172A").setFontColor("#38BDF8");
-  reportsSheet.getRange("A4:B4").setFontWeight("bold").setBackground("#1E293B").setFontColor("#FFFFFF");
-}
-
 /**
  * ----------------------------------------------------------------------------
- * 14. UI MENU & TRIGGER AUTOMATION
+ * 17. UI MENU & TRIGGER AUTOMATION
  * ----------------------------------------------------------------------------
  */
 function onOpen() {
   var ui = SpreadsheetApp.getUi();
   ui.createMenu("RouteCJ Sync")
     .addItem("🔄 Run Full Two-Way Sync", "syncAllCollections")
-    .addItem("🚀 Run Initial Data Migration", "runInitialDataMigration")
+    .addItem("🚀 Run Initial Backfill / Migration", "runInitialDataMigration")
+    .addItem("🔍 Run Empty Field Audit", "runEmptyFieldAudit")
     .addItem("🛠️ Setup All Sheets & Formatting", "setupSheets")
     .addSeparator()
     .addItem("🧪 Test Firestore Connection", "testFirestoreConnection")

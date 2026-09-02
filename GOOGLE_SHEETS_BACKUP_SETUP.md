@@ -1,6 +1,6 @@
-# RouteCJ — Two-Way Firebase Firestore ↔ Google Sheets Synchronization Setup Guide
+# RouteCJ — Two-Way Firebase Firestore ↔ Google Sheets Synchronization Setup & Reference Guide
 
-This guide provides step-by-step instructions to set up the **100% Free Automatic Two-Way Synchronization Engine** between **Firebase Firestore** and your master **Google Spreadsheet** (`ROUTECJ DATABASE BACKUP`).
+This guide provides step-by-step instructions to set up the **100% Free Automatic Two-Way Synchronization Engine** between **Firebase Firestore** and your master **Google Spreadsheet** (`ROUTECJ DATABASE BACKUP` / ID: `17nwnNtKfBcw8zr2elXcAn3mbLS-PtLrSj9vIi4RJMLw`).
 
 ---
 
@@ -19,15 +19,16 @@ This guide provides step-by-step instructions to set up the **100% Free Automati
                   ┌──────────────┴───────────────────────────▼──────────────┐
                   │          Google Apps Script Sync Engine                 │
                   │    (OAuth 2.0 Service Account JWT + Validation)         │
-                  │   Loop Prevention • Conflict Handler • SyncLog Engine   │
+                  │  Loop Prevention • Deduplication • Multi-Alias Parser   │
                   └──────────────▲───────────────────────────┬──────────────┘
                                  │                           │
-                                 │ User Edits                │ Sheet R/W & Styling
+                                 │ User Edits                │ Sheet R/W & In-Place Upsert
                                  │ (Permitted Fields)        │ (Protected Columns Locked)
                                  │                           │
                   ┌──────────────┴───────────────────────────▼──────────────┐
-                  │         Google Spreadsheet (Master Admin Mirror)        │
-                  │ Admins | Drivers | Vehicles | Godowns | Orders | SyncLog│
+                  │         Google Spreadsheet (Master Operations Mirror)   │
+                  │ Orders | Dispatches | Drivers | Vehicles | Godowns |    │
+                  │ Admins | Tracking | Backup Log                          │
                   └─────────────────────────────────────────────────────────┘
 ```
 
@@ -35,14 +36,13 @@ This guide provides step-by-step instructions to set up the **100% Free Automati
 
 ## 2. Fast 3-Minute Setup
 
-### Step 1: Create or Open Master Google Sheet
-1. Open Google Sheets at [sheets.google.com](https://sheets.google.com).
-2. Create a new blank spreadsheet.
-3. Rename the sheet to: **`ROUTECJ DATABASE BACKUP`**.
+### Step 1: Open Master Google Sheet
+1. Open Google Sheets:
+   `https://docs.google.com/spreadsheets/d/17nwnNtKfBcw8zr2elXcAn3mbLS-PtLrSj9vIi4RJMLw/edit`
 
 ### Step 2: Open Apps Script Editor
 1. In the Google Sheet top menu, click **Extensions** $\rightarrow$ **Apps Script**.
-2. Replace all existing code in `Code.gs` with the entire contents of [`RouteCJ_Backup_Script.gs`](./RouteCJ_Backup_Script.gs).
+2. Replace all existing code in `Code.gs` with the entire contents of [`RouteCJ_Sync_Script.gs`](./RouteCJ_Sync_Script.gs).
 3. Click the **Save** (💾) icon.
 
 ### Step 3: Configure Secure Script Properties
@@ -85,34 +85,49 @@ This guide provides step-by-step instructions to set up the **100% Free Automati
 
 ---
 
-## 4. Run Initial Data Migration
-1. Go back to your Google Sheet and reload the page.
-2. You will see a new menu: **RouteCJ Sync**.
-3. Click **RouteCJ Sync** $\rightarrow$ **🚀 Run Initial Data Migration**.
-4. The system will automatically:
-   * Initialize all 8 tabs (`Admins`, `Drivers`, `Vehicles`, `Godowns`, `Orders`, `Dispatches`, `Reports`, `SyncLog`).
-   * Apply visual header formatting (Protected columns marked with `🔒` in muted gray; editable columns marked in cyan).
-   * Pull all existing Firestore data without duplicates.
-   * Write an initial migration summary to the **SyncLog** tab.
+## 4. Master Spreadsheet Tab & Column Structure
+
+The sync engine is aligned 100% with the 8 tabs of the master spreadsheet:
+
+### 1. `Orders` (30 Columns)
+`Order ID` | `Order Number` | `Customer Name` | `Customer Phone` | `Item Name` | `Quantity` | `Weight (kg/tons)` | `Pickup Location` | `Pickup Pincode` | `Delivery Location` | `Delivery Pincode` | `Status` | `Priority` | `Payment Status` | `Total Amount` | `Driver ID` | `Driver Name` | `Vehicle ID` | `Vehicle Registration` | `Parcel ID` | `QR ID` | `OTP Verified` | `Delivered At` | `Delivered By` | `Delivery Remarks` | `Created By` | `Created By Role` | `Source` | `Created At` | `Updated At`
+
+### 2. `Dispatches` (16 Columns)
+`Dispatch ID` | `Order ID` | `Order Number` | `Customer Name` | `Driver ID` | `Driver Name` | `Vehicle ID` | `Vehicle Registration` | `Pickup Location` | `Delivery Location` | `Status` | `Priority` | `Estimated Delivery` | `Remarks` | `Created At` | `Updated At`
+
+### 3. `Drivers` (18 Columns)
+`Driver ID` | `Firebase UID` | `Driver Name` | `Email` | `Phone` | `Status` | `License Number` | `License Expiry` | `Assigned Vehicle` | `Rating` | `Total Deliveries` | `Completed Deliveries` | `Current Latitude` | `Current Longitude` | `Speed (km/h)` | `Heading` | `Last Active` | `Created At`
+
+### 4. `Vehicles` (18 Columns)
+`Vehicle ID` | `Registration Number` | `Vehicle Type` | `Make / Brand` | `Model` | `Capacity` | `Capacity Unit` | `Status` | `Assigned Driver ID` | `Assigned Driver Name` | `Fuel Level (%)` | `Odometer (km)` | `Image URL` | `Last Service Date` | `Next Service Date` | `Insurance Expiry` | `Created At` | `Updated At`
+
+### 5. `Godowns` (16 Columns)
+`Godown ID` | `Godown Name` | `Address` | `City` | `State` | `Pincode` | `Latitude` | `Longitude` | `Capacity (Tons)` | `Current Stock (Tons)` | `Manager ID` | `Manager Name` | `Contact Phone` | `Status` | `Created At` | `Updated At`
+
+### 6. `Admins` (9/10 Columns)
+`Admin ID` | `Firebase UID` | `Admin Name` | `Email` | `Phone` | `Role` | `Status` | `Last Login` | `Profile Image URL` | `Updated At`
+
+### 7. `Tracking` (23 Columns)
+`Dispatch ID` | `Order ID` | `Order Number` | `Customer Name` | `Driver ID` | `Driver Name` | `Driver Phone` | `Vehicle ID` | `Vehicle Registration` | `Vehicle Type` | `Pickup Location` | `Delivery Location` | `Trip Status` | `Current Latitude` | `Current Longitude` | `Speed (km/h)` | `Heading` | `Accuracy (m)` | `Progress (%)` | `ETA` | `Last Location Update` | `Is Stale` | `Updated At`
+
+### 8. `Backup Log` (6 Columns)
+`Timestamp` | `Collection` | `Document ID / Scope` | `Operation` | `Status` | `Summary / Details`
 
 ---
 
-## 5. Protected vs. Editable Fields Matrix
+## 5. Last Login Workflow
 
-| Tab | Editable Administrative Fields (Syncs to Firebase) | Strictly Protected / Read-Only Fields (Live Ops) |
-| :--- | :--- | :--- |
-| **`Vehicles`** | `Registration Number`, `Vehicle Type`, `Brand`, `Model`, `Capacity`, `Fuel Level`, `Status`, `Service Date`, `Insurance Expiry` | `Current Latitude`, `Current Longitude`, `Speed`, `Odometer`, `Updated At` |
-| **`Godowns`** | `Godown Name`, `Address`, `City`, `State`, `Pincode`, `Latitude`, `Longitude`, `Capacity`, `Manager ID`, `Phone`, `Status` | `Current Stock`, `Created At`, `Updated At` |
-| **`Drivers`** | `Driver Name`, `Phone`, `Status`, `License Number`, `License Expiry`, `Assigned Vehicle ID` | `Firebase UID`, `Email`, `Role`, `Current Latitude`, `Current Longitude`, `Speed`, `Heading`, `Last Active` |
-| **`Orders`** | `Customer Name`, `Customer Phone`, `Item Name`, `Quantity`, `Weight`, `Pickup Address`, `Delivery Address`, `Priority`, `Payment Status`, `Payment Method`, `Payment Amount`, `Transaction ID`, `Payment Notes`, `Remarks` | `Status` (`DELIVERED`, `IN_TRANSIT`, `DISPATCHED`), `Parcel ID`, `QR ID`, `OTP Verified`, `Delivery OTP`, `Delivered At`, `Delivered By` |
-| **`Admins`** | `Admin Name`, `Phone`, `Status`, `Profile Image URL` | `Admin ID`, `Firebase UID`, `Email`, `Role`, `Last Login` |
-| **`Dispatches`**| `Driver ID`, `Vehicle ID`, `Priority`, `Estimated Delivery`, `Remarks` | `Dispatch ID`, `Order ID`, `Status`, `Created At`, `Updated At` |
+1. Admin authenticates in RouteCJ Android App (`FirebaseAuth.signInWithEmailAndPassword`).
+2. Upon success, Android app writes `lastLogin = FieldValue.serverTimestamp()` and `updatedAt = FieldValue.serverTimestamp()` to Firestore document (`admins/{uid}` and `admins/{adminId}`).
+3. Automatic Apps Script sync pulls the timestamp, formats it as `yyyy-MM-dd HH:mm:ss`, and updates the `Last Login` column in the `Admins` sheet.
+4. If sync is temporarily unavailable, login completes normally without failure.
 
 ---
 
-## 6. Safety & Conflict Handling Rules
+## 6. Diagnostic Tools
 
-1. **Loop Prevention**: Programmatic mutation locks (`ROUTECJ_PROGRAMMATIC_MUTATION_LOCK`) and metadata tag `syncSource = "GOOGLE_SHEETS"` guarantee no infinite bounce.
-2. **Validation Failure**: If an administrator inputs an invalid coordinate (e.g. `latitude = 120.0`) or invalid phone/pincode, the cell automatically reverts to its prior value and logs a warning in `SyncLog`.
-3. **Protected Edit Rejection**: If an administrator attempts to overwrite a protected live field (e.g. live GPS or delivery OTP), the cell immediately restores the true Firestore value and alerts the user via a Toast.
-4. **Offline Resiliency**: If Google Sheets is unavailable, the RouteCJ Android applications continue functioning with 100% full capabilities directly with Firebase Firestore.
+### Empty Field Audit
+1. In Google Sheets, click the **RouteCJ Sync** menu.
+2. Select **🔍 Run Empty Field Audit**.
+3. The script inspects all Firestore collections, compares every field against the sheet, and generates a diagnostic sheet: `Audit Report` detailing:
+   `Collection` | `Document ID` | `Firebase Field` | `Sheet Column` | `Firebase Value` | `Sheet Value` | `Status`.

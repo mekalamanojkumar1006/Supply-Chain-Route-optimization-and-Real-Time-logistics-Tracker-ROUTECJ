@@ -2,14 +2,25 @@ package com.routecj.admin.core.util
 
 import android.graphics.Bitmap
 import android.graphics.Color
-import android.net.Uri
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.MultiFormatWriter
 import com.google.zxing.WriterException
 import timber.log.Timber
+import java.net.URLEncoder
 import java.util.Locale
 
 object QrCodeGenerator {
+
+    /**
+     * Helper URL encoder compatible with JVM Unit Tests and Android Runtime.
+     */
+    private fun encodeUrl(value: String): String {
+        return try {
+            URLEncoder.encode(value.trim(), "UTF-8").replace("+", "%20")
+        } catch (_: Exception) {
+            value.trim()
+        }
+    }
 
     /**
      * Generates a QR Code Bitmap for the given text.
@@ -31,30 +42,47 @@ object QrCodeGenerator {
     }
 
     /**
+     * Builds standard NPCI UPI payment URI string.
+     * URI Format: upi://pay?pa=chinnujunnu@slc&pn=RouteCJ&am=<ORDER_AMOUNT>&cu=INR
+     */
+    fun buildUpiUri(
+        upiId: String = Constants.Payment.DEFAULT_UPI_ID,
+        payeeName: String = Constants.Payment.DEFAULT_PAYEE_NAME,
+        amount: Double = 0.0,
+        note: String = "",
+        transactionRef: String = ""
+    ): String {
+        val encodedPayee = encodeUrl(payeeName)
+        val formattedAmount = String.format(Locale.US, "%.2f", amount)
+        val sb = StringBuilder("upi://pay?pa=${upiId.trim()}&pn=$encodedPayee&am=$formattedAmount&cu=INR")
+        if (note.isNotBlank()) {
+            sb.append("&tn=${encodeUrl(note)}")
+        }
+        if (transactionRef.isNotBlank()) {
+            sb.append("&tr=${encodeUrl(transactionRef)}")
+        }
+        return sb.toString()
+    }
+
+    /**
      * Generates a standard NPCI UPI Payment QR Code Bitmap.
-     * URI Format: upi://pay?pa=manoj-2005-mekala@yes&pn=RouteCJ%20Logistics&am=1500.00&cu=INR&tn=Order%20Payment
+     * Generates actual UPI URI: upi://pay?pa=chinnujunnu@slc&pn=RouteCJ&am=499.00&cu=INR
      */
     fun generateUpiQrCode(
         upiId: String = Constants.Payment.DEFAULT_UPI_ID,
         payeeName: String = Constants.Payment.DEFAULT_PAYEE_NAME,
         amount: Double = 0.0,
-        note: String = "RouteCJ Logistics Payment",
+        note: String = "",
         transactionRef: String = "",
         size: Int = 512
     ): Bitmap? {
-        val encodedPayee = Uri.encode(payeeName)
-        val encodedNote = Uri.encode(note)
-        val uriBuilder = StringBuilder("upi://pay?pa=${upiId.trim()}&pn=$encodedPayee&cu=INR")
-        if (amount > 0.0) {
-            uriBuilder.append(String.format(Locale.US, "&am=%.2f", amount))
-        }
-        if (encodedNote.isNotBlank()) {
-            uriBuilder.append("&tn=$encodedNote")
-        }
-        if (transactionRef.isNotBlank()) {
-            uriBuilder.append("&tr=${Uri.encode(transactionRef)}")
-        }
-        return generateQrCode(uriBuilder.toString(), size)
+        val uri = buildUpiUri(
+            upiId = upiId,
+            payeeName = payeeName,
+            amount = amount,
+            note = note,
+            transactionRef = transactionRef
+        )
+        return generateQrCode(uri, size)
     }
 }
-

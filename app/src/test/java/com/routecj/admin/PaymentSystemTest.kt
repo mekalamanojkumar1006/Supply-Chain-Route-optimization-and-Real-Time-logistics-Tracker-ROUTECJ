@@ -1,12 +1,10 @@
 package com.routecj.admin
 
 import com.routecj.admin.domain.model.Order
-import com.routecj.admin.domain.model.OrderStatus
 import com.routecj.admin.domain.model.PaymentMethod
 import com.routecj.admin.domain.model.PaymentStatus
 import org.junit.Assert.*
 import org.junit.Test
-import java.util.Date
 
 class PaymentSystemTest {
 
@@ -112,15 +110,42 @@ class PaymentSystemTest {
     @Test
     fun testUpiIdAndUriConstruction() {
         val upiId = com.routecj.admin.core.util.Constants.Payment.DEFAULT_UPI_ID
-        assertEquals("manoj-2005-mekala@yes", upiId)
+        val payeeName = com.routecj.admin.core.util.Constants.Payment.DEFAULT_PAYEE_NAME
+        assertEquals("chinnujunnu@slc", upiId)
+        assertEquals("RouteCJ", payeeName)
 
-        val amount = 1500.0
-        val orderNo = "ORD12345"
-        val expectedUri = "upi://pay?pa=$upiId&pn=RouteCJ%20Logistics%20%28Manoj%20Mekala%29&cu=INR&am=1500.00&tn=Order%20ORD12345%20Payment&tr=ORD12345"
-        
-        // Ensure uri contains the configured UPI ID and amount
-        assertTrue(expectedUri.contains("pa=manoj-2005-mekala@yes"))
-        assertTrue(expectedUri.contains("am=1500.00"))
-        assertTrue(expectedUri.contains("cu=INR"))
+        val amount = 499.0
+        val expectedUri = "upi://pay?pa=chinnujunnu@slc&pn=RouteCJ&am=499.00&cu=INR"
+        val generatedUri = com.routecj.admin.core.util.QrCodeGenerator.buildUpiUri(
+            upiId = upiId,
+            payeeName = payeeName,
+            amount = amount
+        )
+
+        assertEquals(expectedUri, generatedUri)
+        assertTrue(generatedUri.contains("pa=chinnujunnu@slc"))
+        assertTrue(generatedUri.contains("pn=RouteCJ"))
+        assertTrue(generatedUri.contains("am=499.00"))
+        assertTrue(generatedUri.contains("cu=INR"))
+    }
+
+    @Test
+    fun testScanningQrDoesNotMarkOrderAsPaid() {
+        val order = Order(
+            id = "ORD-999",
+            paymentStatus = "PENDING",
+            paymentMethod = "UPI",
+            paymentAmount = 499.0
+        )
+
+        // Generating / displaying QR code
+        val uri = com.routecj.admin.core.util.QrCodeGenerator.buildUpiUri(
+            amount = order.paymentAmount
+        )
+
+        assertNotNull(uri)
+        // Verify payment status remains unchanged (PENDING) by QR code generation/display
+        assertEquals(PaymentStatus.PENDING, order.effectivePaymentStatus)
+        assertEquals("PENDING", order.paymentStatus)
     }
 }

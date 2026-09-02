@@ -84,8 +84,8 @@ object Constants {
 
     // Payment configuration
     object Payment {
-        const val DEFAULT_UPI_ID = "manoj-2005-mekala@yes"
-        const val DEFAULT_PAYEE_NAME = "RouteCJ Logistics (Manoj Mekala)"
+        const val DEFAULT_UPI_ID = "chinnujunnu@slc"
+        const val DEFAULT_PAYEE_NAME = "RouteCJ"
     }
 }
 

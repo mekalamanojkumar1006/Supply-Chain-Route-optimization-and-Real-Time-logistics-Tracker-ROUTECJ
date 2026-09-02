@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Allows FileProvider to share files from app's external documents directory -->
+    <external-files-path
+        name="invoices"
+        path="Documents/invoices/" />
+</paths>

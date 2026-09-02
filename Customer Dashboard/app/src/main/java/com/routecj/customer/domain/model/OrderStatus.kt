@@ -1,0 +1,18 @@
+package com.routecj.customer.domain.model
+
+enum class OrderStatus {
+    BOOKED,
+    CONFIRMED,
+    DRIVER_ASSIGNED,
+    DRIVER_ARRIVED,
+    OTP_VERIFIED,
+    PARCEL_SUBMITTED,
+    PENDING_GODOWN_REVIEW,
+    GODOWN_APPROVED,
+    GODOWN_REJECTED,
+    READY_FOR_DISPATCH,
+    DISPATCHED,
+    IN_TRANSIT,
+    DELIVERED,
+    CANCELLED
+}

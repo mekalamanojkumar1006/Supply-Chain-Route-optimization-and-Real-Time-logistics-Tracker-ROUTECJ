@@ -18,3 +18,7 @@
 .cxx
 local.properties
 secrets.properties
+.vscode/
+Thumbs.db
+*/build/
+*/.gradle/

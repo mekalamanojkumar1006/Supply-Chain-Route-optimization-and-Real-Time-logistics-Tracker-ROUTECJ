@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Pure Black Background -->
+  <rect width="512" height="512" fill="#000000"/>
+
+  <!-- Centered RouteCJ Driver Truck Symbol (Bright Electric Blue #0066FF) -->
+  <g fill="#0066FF">
+    <!-- Cargo Body -->
+    <rect x="110" y="175" width="185" height="135" rx="14"/>
+
+    <!-- Cabin -->
+    <path d="M 302 208 L 352 208 C 374 208, 390 228, 390 255 L 390 310 L 302 310 Z"/>
+
+    <!-- Window Cutout (Black) -->
+    <path d="M 310 218 L 345 218 C 358 218, 372 230, 372 248 L 372 258 L 310 258 Z" fill="#000000"/>
+
+    <!-- Rear Wheel Outer -->
+    <circle cx="175" cy="328" r="32"/>
+    <!-- Rear Wheel Inner Hub -->
+    <circle cx="175" cy="328" r="14" fill="#000000"/>
+
+    <!-- Front Wheel Outer -->
+    <circle cx="345" cy="328" r="32"/>
+    <!-- Front Wheel Inner Hub -->
+    <circle cx="345" cy="328" r="14" fill="#000000"/>
+  </g>
+</svg>

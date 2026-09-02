@@ -1,0 +1,41 @@
+package com.routecj.customer.domain.model
+
+data class Order(
+    val id: String,
+    val customerId: String,
+    val pickupLatitude: Double,
+    val pickupLongitude: Double,
+    val pickupAddress: String?,
+    val destinationLatitude: Double? = null,
+    val destinationLongitude: Double? = null,
+    val destinationAddress: String? = null,
+    val packageType: String? = null,
+    val itemDescription: String? = null,
+    val packageCount: Int? = null,
+    val weight: Double? = null,
+    val specialInstructions: String? = null,
+    val pickupDate: String? = null,
+    val pickupSlot: String? = null,
+    val status: OrderStatus,
+    val driverId: String? = null,
+    val pickupOtpStatus: String? = null,
+    val pickupOtpCreatedAt: Long? = null,
+    val pickupOtpExpiresAt: Long? = null,
+    val parcelSubmitted: Boolean? = null,
+    val parcelSubmittedAt: Long? = null,
+    val qrGenerated: Boolean? = null,
+    val qrCode: String? = null,
+    val qrStatus: String? = null,
+    // Payment fields (read-only on Customer side — written by PaymentRepositoryImpl)
+    val paymentStatus: String? = null,
+    val transactionId: String? = null,
+    val paidAt: Long? = null,
+    val deliveryCharge: Double? = null,
+    val tax: Double? = null,
+    val totalAmount: Double? = null,
+    val invoiceNumber: String? = null,
+    val paymentMode: String? = null,   // "DEMO" for this project
+    val currency: String? = null,
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis()
+)

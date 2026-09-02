@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
+import com.routecj.admin.core.util.OrderAddressMapper
 import com.routecj.admin.core.util.Result
 import com.routecj.admin.domain.model.Order
 import com.routecj.admin.presentation.components.*
@@ -129,10 +130,10 @@ fun VerifiedParcelDetailsScreen(
                         DetailRow(Icons.Default.Numbers, "Quantity", "${o.quantity} pcs")
                         DetailRow(Icons.Default.Scale, "Weight", "${o.weight} kg")
 
-                        val pickupAddr = (o.pickupAddress.ifBlank { o.pickupLocation }).ifBlank { "Origin Address not available" }
-                        val pickupPin = if (o.pickupPincode.isNotBlank()) o.pickupPincode else "PIN not available"
-                        val deliveryAddr = (o.deliveryAddress.ifBlank { o.deliveryLocation }).ifBlank { "Destination Address not available" }
-                        val deliveryPin = if (o.deliveryPincode.isNotBlank()) o.deliveryPincode else "PIN not available"
+                        val pickupAddr = o.pickupAddress.ifBlank { o.pickupLocation.ifBlank { "Origin Address not available" } }
+                        val pickupPin = o.pickupPincode.ifBlank { OrderAddressMapper.extractPincodeFromText(pickupAddr).ifBlank { "PIN not available" } }
+                        val deliveryAddr = o.deliveryAddress.ifBlank { o.deliveryLocation.ifBlank { o.customerAddress.ifBlank { "Destination Address not available" } } }
+                        val deliveryPin = o.deliveryPincode.ifBlank { OrderAddressMapper.extractPincodeFromText(deliveryAddr).ifBlank { "PIN not available" } }
 
                         DetailRow(Icons.Default.TripOrigin, "Pickup Address", pickupAddr)
                         DetailRow(Icons.Default.PinDrop, "Pickup PIN Code", pickupPin)

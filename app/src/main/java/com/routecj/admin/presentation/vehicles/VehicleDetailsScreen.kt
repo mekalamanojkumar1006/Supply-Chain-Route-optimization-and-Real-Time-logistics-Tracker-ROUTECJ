@@ -86,8 +86,6 @@ fun VehicleDetailsScreen(
 
     // Image Upload State Listener
     val imageUploadState by viewModel.imageUploadState.collectAsStateWithLifecycle()
-    val isUploadingImage = imageUploadState is Result.Loading
-
     LaunchedEffect(imageUploadState) {
         imageUploadState?.let { result ->
             when (result) {
@@ -98,7 +96,7 @@ fun VehicleDetailsScreen(
                     viewModel.clearImageUploadState()
                 }
                 is Result.Error -> {
-                    Toast.makeText(context, result.message, Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, "Image upload failed: ${result.message}", Toast.LENGTH_LONG).show()
                     viewModel.clearImageUploadState()
                 }
                 is Result.Loading -> {}
@@ -564,26 +562,17 @@ fun VehicleDetailsScreen(
                                 val uri = pendingImageUri
                                 val vId = vehicleId
                                 if (uri != null && vId != null) {
-                                    android.util.Log.d("VEHICLE_IMAGE_UPLOAD", "User initiated Save & Upload for vehicleId=$vId, uri=$uri")
                                     viewModel.uploadVehicleImage(vId, uri)
+                                    pendingImageUri = null
                                 }
                             },
-                            enabled = !isUploadingImage,
                             modifier = Modifier
                                 .weight(1f)
                                 .height(48.dp),
                             shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = Primary)
                         ) {
-                            if (isUploadingImage) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(20.dp),
-                                    color = Color.White,
-                                    strokeWidth = 2.dp
-                                )
-                            } else {
-                                Text("Save & Upload", fontWeight = FontWeight.Bold)
-                            }
+                            Text("Save & Upload", fontWeight = FontWeight.Bold)
                         }
                     }
                 }

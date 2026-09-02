@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.routecj.admin.core.util.OrderAddressMapper
 import com.routecj.admin.core.util.QrCodeGenerator
 import com.routecj.admin.core.util.Result
 import com.routecj.admin.domain.model.Order
@@ -104,10 +105,13 @@ fun QRDisplayScreen(
                     DetailRow(Icons.Default.Scale, "Weight", "${o.weight} kg")
                     DetailRow(Icons.Default.Person, "Customer", o.customerName)
 
-                    val pickupAddr = (o.pickupAddress.ifBlank { o.pickupLocation }).ifBlank { "Origin" }
-                    val pickupPin = if (o.pickupPincode.isNotBlank()) " (${o.pickupPincode})" else ""
-                    val destAddr = (o.deliveryAddress.ifBlank { o.deliveryLocation }).ifBlank { "Destination" }
-                    val destPin = if (o.deliveryPincode.isNotBlank()) " (${o.deliveryPincode})" else ""
+                    val pickupAddr = o.pickupAddress.ifBlank { o.pickupLocation.ifBlank { "Origin" } }
+                    val resolvedPickupPin = o.pickupPincode.ifBlank { OrderAddressMapper.extractPincodeFromText(pickupAddr) }
+                    val pickupPin = if (resolvedPickupPin.isNotBlank()) " ($resolvedPickupPin)" else ""
+
+                    val destAddr = o.deliveryAddress.ifBlank { o.deliveryLocation.ifBlank { o.customerAddress.ifBlank { "Destination" } } }
+                    val resolvedDestPin = o.deliveryPincode.ifBlank { OrderAddressMapper.extractPincodeFromText(destAddr) }
+                    val destPin = if (resolvedDestPin.isNotBlank()) " ($resolvedDestPin)" else ""
 
                     DetailRow(Icons.Default.TripOrigin, "Pickup Location", "$pickupAddr$pickupPin")
                     DetailRow(Icons.Default.LocationOn, "Delivery Destination", "$destAddr$destPin")

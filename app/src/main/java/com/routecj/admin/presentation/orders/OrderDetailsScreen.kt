@@ -2,6 +2,7 @@ package com.routecj.admin.presentation.orders
 
 import android.widget.Toast
 import androidx.compose.foundation.background
+import com.routecj.admin.core.util.OrderAddressMapper
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
@@ -27,8 +28,6 @@ import com.routecj.admin.core.util.Constants
 import com.routecj.admin.core.util.Result
 import com.routecj.admin.domain.model.Order
 import com.routecj.admin.domain.model.OrderStatus
-import com.routecj.admin.domain.model.PaymentMethod
-import com.routecj.admin.domain.model.PaymentStatus
 import com.routecj.admin.presentation.components.BentoCard
 import com.routecj.admin.presentation.components.PremiumStatusChip
 import com.routecj.admin.ui.theme.Primary
@@ -120,10 +119,6 @@ fun OrderDetailsScreen(
                     item {
                         DeliveryInProgressCard(order = o)
                     }
-                }
-
-                item {
-                    PaymentInfoSection(order = o)
                 }
 
                 item {
@@ -261,8 +256,8 @@ fun DeliveryCompletionCard(order: Order) {
 
 @Composable
 fun DeliveryInProgressCard(order: Order) {
-    val deliveryAddr = (order.deliveryAddress.ifBlank { order.deliveryLocation }).ifBlank { "Destination Address not available" }
-    val deliveryPin = if (order.deliveryPincode.isNotBlank()) order.deliveryPincode else "PIN not available"
+    val deliveryAddr = order.deliveryAddress.ifBlank { order.deliveryLocation.ifBlank { order.customerAddress.ifBlank { "Destination Address not available" } } }
+    val deliveryPin = order.deliveryPincode.ifBlank { OrderAddressMapper.extractPincodeFromText(deliveryAddr).ifBlank { "PIN not available" } }
 
     BentoCard(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -320,10 +315,10 @@ fun OrderInfoSection(order: Order) {
             DetailRow(Icons.Default.Person, "Customer", order.customerName)
             DetailRow(Icons.Default.Phone, "Customer Phone", order.customerPhone)
 
-            val pickupAddr = (order.pickupAddress.ifBlank { order.pickupLocation }).ifBlank { "Pickup Address not available" }
-            val pickupPin = if (order.pickupPincode.isNotBlank()) order.pickupPincode else "PIN not available"
-            val deliveryAddr = (order.deliveryAddress.ifBlank { order.deliveryLocation }).ifBlank { "Delivery Address not available" }
-            val deliveryPin = if (order.deliveryPincode.isNotBlank()) order.deliveryPincode else "PIN not available"
+            val pickupAddr = order.pickupAddress.ifBlank { order.pickupLocation.ifBlank { "Pickup Address not available" } }
+            val pickupPin = order.pickupPincode.ifBlank { OrderAddressMapper.extractPincodeFromText(pickupAddr).ifBlank { "PIN not available" } }
+            val deliveryAddr = order.deliveryAddress.ifBlank { order.deliveryLocation.ifBlank { order.customerAddress.ifBlank { "Delivery Address not available" } } }
+            val deliveryPin = order.deliveryPincode.ifBlank { OrderAddressMapper.extractPincodeFromText(deliveryAddr).ifBlank { "PIN not available" } }
 
             DetailRow(Icons.Default.TripOrigin, "Pickup Address", pickupAddr)
             DetailRow(Icons.Default.PinDrop, "Pickup PIN Code", pickupPin)
@@ -333,92 +328,9 @@ fun OrderInfoSection(order: Order) {
             DetailRow(Icons.Default.Scale, "Declared Weight", "${order.weight} kg")
             DetailRow(Icons.Default.Numbers, "Package Quantity", order.quantity.toString())
             DetailRow(Icons.Default.PriorityHigh, "Priority", order.priority)
+            DetailRow(Icons.Default.Payment, "Payment Status", order.paymentStatus)
             DetailRow(Icons.Default.Schedule, "Created At", df.format(order.createdAt))
             if (order.remarks.isNotBlank()) DetailRow(Icons.Default.Edit, "Remarks", order.remarks)
-        }
-    }
-}
-
-@Composable
-fun PaymentInfoSection(order: Order) {
-    val df = SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault())
-    val pStatus = order.effectivePaymentStatus
-    val pMethod = order.effectivePaymentMethod
-    val amount = if (order.paymentAmount > 0.0) order.paymentAmount else order.totalAmount
-    var showQrDialog by remember { mutableStateOf(false) }
-
-    if (showQrDialog) {
-        com.routecj.admin.presentation.components.UpiPaymentQrDialog(
-            amount = amount,
-            orderNumber = order.orderNumber,
-            onDismiss = { showQrDialog = false }
-        )
-    }
-
-    val (badgeBg, badgeTextColor) = when (pStatus) {
-        PaymentStatus.PAID -> Color(0xFF10B981).copy(alpha = 0.15f) to Color(0xFF10B981)
-        PaymentStatus.PENDING -> Color(0xFFF59E0B).copy(alpha = 0.15f) to Color(0xFFF59E0B)
-        PaymentStatus.PARTIALLY_PAID -> Color(0xFF3B82F6).copy(alpha = 0.15f) to Color(0xFF3B82F6)
-        PaymentStatus.COD -> Color(0xFF8B5CF6).copy(alpha = 0.15f) to Color(0xFF8B5CF6)
-        PaymentStatus.FAILED -> Color(0xFFEF4444).copy(alpha = 0.15f) to Color(0xFFEF4444)
-        PaymentStatus.REFUNDED -> Color(0xFF6B7280).copy(alpha = 0.15f) to Color(0xFF9CA3AF)
-    }
-
-    BentoCard(modifier = Modifier.fillMaxWidth()) {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "PAYMENT INFORMATION",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Black,
-                    color = Color.Gray
-                )
-                Surface(
-                    color = badgeBg,
-                    shape = RoundedCornerShape(6.dp)
-                ) {
-                    Text(
-                        text = pStatus.name.replace("_", " "),
-                        color = badgeTextColor,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            DetailRow(Icons.Default.CurrencyRupee, "Payment Amount", String.format(Locale.getDefault(), "₹ %,.2f", amount))
-            DetailRow(Icons.Default.Payment, "Payment Method", pMethod.name.replace("_", " "))
-
-            if (order.transactionId.isNotBlank()) {
-                DetailRow(Icons.Default.ReceiptLong, "Transaction / Reference ID", order.transactionId)
-            }
-
-            if (order.paymentTimestamp != null) {
-                DetailRow(Icons.Default.EventAvailable, "Payment Recorded At", df.format(order.paymentTimestamp))
-            }
-
-            if (order.paymentNotes.isNotBlank()) {
-                DetailRow(Icons.Default.Notes, "Payment Notes", order.paymentNotes)
-            }
-
-            Spacer(modifier = Modifier.height(4.dp))
-            OutlinedButton(
-                onClick = { showQrDialog = true },
-                shape = RoundedCornerShape(10.dp),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = Primary),
-                modifier = Modifier.fillMaxWidth().height(42.dp)
-            ) {
-                Icon(Icons.Default.QrCode2, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Show UPI Payment QR Code", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            }
         }
     }
 }

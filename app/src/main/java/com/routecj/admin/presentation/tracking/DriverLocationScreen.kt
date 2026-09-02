@@ -520,22 +520,6 @@ private fun FloatingControlAction(
 }
 
 private fun createDriverLocationMarkerDrawable(context: Context): BitmapDrawable {
-    val drawable = androidx.core.content.ContextCompat.getDrawable(
-        context,
-        com.routecj.admin.R.drawable.ic_routecj_truck_marker
-    ) ?: return createFallbackTruckMarkerDrawable(context)
-
-    val sizePx = (54 * context.resources.displayMetrics.density).toInt()
-    val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
-    val canvas = Canvas(bitmap)
-
-    drawable.setBounds(0, 0, sizePx, sizePx)
-    drawable.draw(canvas)
-
-    return BitmapDrawable(context.resources, bitmap)
-}
-
-private fun createFallbackTruckMarkerDrawable(context: Context): BitmapDrawable {
     val sizePx = (52 * context.resources.displayMetrics.density).toInt()
     val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bitmap)
@@ -545,18 +529,21 @@ private fun createFallbackTruckMarkerDrawable(context: Context): BitmapDrawable 
     val innerRadius = sizePx * 0.32f
     val coreRadius = sizePx * 0.16f
 
+    // Outer glow / halo
     val haloPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = android.graphics.Color.argb(80, 0, 207, 200)
+        color = android.graphics.Color.argb(80, 0, 207, 200) // RouteCJ Cyan Halo
         style = Paint.Style.FILL
     }
     canvas.drawCircle(center, center, outerRadius, haloPaint)
 
+    // Primary circle
     val primaryPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = android.graphics.Color.rgb(0, 207, 200)
         style = Paint.Style.FILL
     }
     canvas.drawCircle(center, center, innerRadius, primaryPaint)
 
+    // White Border
     val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = android.graphics.Color.WHITE
         style = Paint.Style.STROKE
@@ -564,8 +551,9 @@ private fun createFallbackTruckMarkerDrawable(context: Context): BitmapDrawable 
     }
     canvas.drawCircle(center, center, innerRadius, strokePaint)
 
+    // Inner pointer dot
     val corePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = android.graphics.Color.rgb(15, 23, 42)
+        color = android.graphics.Color.rgb(15, 23, 42) // Deep Navy
         style = Paint.Style.FILL
     }
     canvas.drawCircle(center, center, coreRadius, corePaint)

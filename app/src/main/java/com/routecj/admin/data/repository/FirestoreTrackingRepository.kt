@@ -1,6 +1,7 @@
 package com.routecj.admin.data.repository
 
 import com.google.firebase.firestore.FirebaseFirestore
+import com.routecj.admin.core.util.OrderAddressMapper
 import com.routecj.admin.core.util.Result
 import com.routecj.admin.domain.model.DispatchStatus
 import com.routecj.admin.domain.model.TrackingInfo
@@ -112,6 +113,17 @@ class FirestoreTrackingRepository @Inject constructor(
                         processedOrderIds.add(orderId)
                     }
 
+                    val (dPickup, _, _) = OrderAddressMapper.extractPickupInfo(d)
+                    val (dDeliv, _, dDestLoc) = OrderAddressMapper.extractDeliveryInfo(d)
+                    val (oPickup, _, oDestLoc) = OrderAddressMapper.extractPickupInfo(orderData)
+                    val (oDeliv, _, _) = OrderAddressMapper.extractDeliveryInfo(orderData)
+
+                    val resolvedPickup = dPickup.ifBlank { oPickup.ifBlank { "Origin Godown" } }
+                    val resolvedDelivery = dDeliv.ifBlank { oDeliv.ifBlank { "Destination Hub" } }
+
+                    val destLat = if (dDestLoc.latitude != 0.0) dDestLoc.latitude else if (oDestLoc.latitude != 0.0) oDestLoc.latitude else null
+                    val destLng = if (dDestLoc.longitude != 0.0) dDestLoc.longitude else if (oDestLoc.longitude != 0.0) oDestLoc.longitude else null
+
                     trackingList.add(
                         TrackingInfo(
                             dispatchId = d["id"] as? String ?: "",
@@ -119,8 +131,8 @@ class FirestoreTrackingRepository @Inject constructor(
                             orderNumber = d["orderNumber"] as? String ?: (orderData["orderNumber"] as? String ?: ""),
                             customerName = d["customerName"] as? String ?: (orderData["customerName"] as? String ?: "Customer"),
                             status = status,
-                            pickupLocation = d["pickupLocation"] as? String ?: (orderData["pickupAddress"] as? String ?: (orderData["pickupLocation"] as? String ?: "Origin Godown")),
-                            deliveryLocation = d["deliveryLocation"] as? String ?: (orderData["deliveryAddress"] as? String ?: (orderData["deliveryLocation"] as? String ?: "Destination Hub")),
+                            pickupLocation = resolvedPickup,
+                            deliveryLocation = resolvedDelivery,
                             driverId = driverId,
                             driverName = d["driverName"] as? String ?: (orderData["driverName"] as? String ?: (driverData["name"] as? String ?: "Assigned Driver")),
                             driverPhone = driverData["phone"] as? String ?: (orderData["driverPhone"] as? String ?: ""),
@@ -139,8 +151,8 @@ class FirestoreTrackingRepository @Inject constructor(
                             estimatedArrival = if (status == DispatchStatus.DELIVERED) "Completed" else "In Transit (~45 mins)",
                             progressPercentage = progress,
                             tripStartedAt = tripStartedAt,
-                            destinationLatitude = (orderData["destination"] as? Map<String, Any>)?.get("latitude") as? Double,
-                            destinationLongitude = (orderData["destination"] as? Map<String, Any>)?.get("longitude") as? Double
+                            destinationLatitude = destLat,
+                            destinationLongitude = destLng
                         )
                     )
                 }
@@ -179,6 +191,14 @@ class FirestoreTrackingRepository @Inject constructor(
                                 DispatchStatus.CANCELLED -> 0
                             }
 
+                            val (oPickup, _, _) = OrderAddressMapper.extractPickupInfo(orderData)
+                            val (oDeliv, _, oDestLoc) = OrderAddressMapper.extractDeliveryInfo(orderData)
+
+                            val resolvedPickup = oPickup.ifBlank { "Origin Godown" }
+                            val resolvedDelivery = oDeliv.ifBlank { "Destination Hub" }
+                            val destLat = if (oDestLoc.latitude != 0.0) oDestLoc.latitude else null
+                            val destLng = if (oDestLoc.longitude != 0.0) oDestLoc.longitude else null
+
                             trackingList.add(
                                 TrackingInfo(
                                     dispatchId = orderId,
@@ -186,8 +206,8 @@ class FirestoreTrackingRepository @Inject constructor(
                                     orderNumber = (orderData["orderNumber"] as? String) ?: "ORD-$orderId",
                                     customerName = (orderData["customerName"] as? String) ?: "Customer",
                                     status = mappedStatus,
-                                    pickupLocation = (orderData["pickupAddress"] as? String) ?: ((orderData["pickupLocation"] as? String) ?: "Origin Godown"),
-                                    deliveryLocation = (orderData["deliveryAddress"] as? String) ?: ((orderData["deliveryLocation"] as? String) ?: "Destination Hub"),
+                                    pickupLocation = resolvedPickup,
+                                    deliveryLocation = resolvedDelivery,
                                     driverId = driverId,
                                     driverName = (orderData["driverName"] as? String) ?: ((driverData["name"] as? String) ?: "Assigned Driver"),
                                     driverPhone = (driverData["phone"] as? String) ?: ((orderData["driverPhone"] as? String) ?: ""),
@@ -206,8 +226,8 @@ class FirestoreTrackingRepository @Inject constructor(
                                     estimatedArrival = if (mappedStatus == DispatchStatus.DELIVERED) "Completed" else "In Transit (~45 mins)",
                                     progressPercentage = progress,
                                     tripStartedAt = (orderData["createdAt"] as? com.google.firebase.Timestamp)?.toDate() ?: (orderData["createdAt"] as? Date),
-                                    destinationLatitude = (orderData["destination"] as? Map<String, Any>)?.get("latitude") as? Double,
-                                    destinationLongitude = (orderData["destination"] as? Map<String, Any>)?.get("longitude") as? Double
+                                    destinationLatitude = destLat,
+                                    destinationLongitude = destLng
                                 )
                             )
                         }

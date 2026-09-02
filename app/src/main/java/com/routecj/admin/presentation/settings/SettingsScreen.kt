@@ -10,7 +10,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Logout
-import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -32,11 +31,6 @@ import com.routecj.admin.presentation.components.RouteCJPasswordTextField
 import com.routecj.admin.ui.theme.Primary
 import com.routecj.admin.ui.theme.Secondary
 
-import com.routecj.admin.domain.model.BackupHealthState
-import com.routecj.admin.domain.model.BackupStatus
-import java.text.SimpleDateFormat
-import java.util.Locale
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
@@ -46,20 +40,8 @@ fun SettingsScreen(
     val context = LocalContext.current
     val admin by viewModel.currentAdmin.collectAsStateWithLifecycle()
     val actionState by viewModel.actionState.collectAsStateWithLifecycle()
-    val backupStatusState by viewModel.backupStatus.collectAsStateWithLifecycle()
-    val syncState by viewModel.syncState.collectAsStateWithLifecycle()
     
     var showPasswordDialog by remember { mutableStateOf(false) }
-
-    LaunchedEffect(syncState) {
-        if (syncState is Result.Success) {
-            Toast.makeText(context, "Google Sheets backup synchronized successfully", Toast.LENGTH_SHORT).show()
-            viewModel.clearSyncState()
-        } else if (syncState is Result.Error) {
-            Toast.makeText(context, (syncState as Result.Error).message, Toast.LENGTH_LONG).show()
-            viewModel.clearSyncState()
-        }
-    }
 
     LaunchedEffect(actionState) {
         if (actionState is Result.Success) {
@@ -128,36 +110,7 @@ fun SettingsScreen(
                 }
             }
 
-            // 3. DATA BACKUP & GOOGLE SHEETS (Only Super Admin & Admin)
-            if (admin?.isAdmin == true || admin?.isSuperAdmin == true) {
-                item {
-                    val status = (backupStatusState as? Result.Success)?.data ?: BackupStatus()
-                    val isSyncing = syncState is Result.Loading
-
-                    PremiumSettingsCard("DATA BACKUP & REPORTING (GOOGLE SHEETS)") {
-                        BackupHealthCard(
-                            status = status,
-                            isSyncing = isSyncing,
-                            onSyncClick = { viewModel.triggerBackupSync() },
-                            onOpenSheetClick = {
-                                val sheetUrl = status.spreadsheetUrl
-                                if (!sheetUrl.isNullOrBlank()) {
-                                    try {
-                                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(sheetUrl))
-                                        context.startActivity(intent)
-                                    } catch (_: Exception) {
-                                        Toast.makeText(context, "Browser interface unavailable", Toast.LENGTH_SHORT).show()
-                                    }
-                                } else {
-                                    Toast.makeText(context, "Google Sheet URL not configured in Firestore", Toast.LENGTH_SHORT).show()
-                                }
-                            }
-                        )
-                    }
-                }
-            }
-
-            // 4. PRIVACY & APPLICATION Section
+            // 3. PRIVACY & APPLICATION Section
             item {
                 PremiumSettingsCard("PRIVACY & APPLICATION") {
                     SettingsItem(
@@ -200,7 +153,7 @@ fun SettingsScreen(
                 }
             }
 
-            // 5. LOGOUT
+            // 4. LOGOUT
             item {
                 Button(
                     onClick = {
@@ -332,146 +285,3 @@ fun ChangePasswordDialog(onDismiss: () -> Unit, onConfirm: (String, String) -> U
         }
     )
 }
-
-@Composable
-fun BackupHealthCard(
-    status: BackupStatus,
-    isSyncing: Boolean,
-    onSyncClick: () -> Unit,
-    onOpenSheetClick: () -> Unit
-) {
-    val state = status.effectiveState
-    val dateFormat = remember { SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()) }
-    val lastBackupStr = status.lastSuccessfulBackup?.let { dateFormat.format(it) } ?: "Not yet recorded"
-
-    val (badgeText, badgeColor, badgeBg) = when (state) {
-        BackupHealthState.CONNECTED -> Triple("🟢 Backup Connected", Color(0xFF10B981), Color(0xFFECFDF5))
-        BackupHealthState.DELAYED -> Triple("🟡 Backup Delayed", Color(0xFFF59E0B), Color(0xFFFFFBEB))
-        BackupHealthState.ERROR -> Triple("🔴 Backup Error", Color(0xFFEF4444), Color(0xFFFEF2F2))
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        // Status Badge & Health Tag
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Surface(
-                color = badgeBg,
-                shape = RoundedCornerShape(8.dp)
-            ) {
-                Text(
-                    text = badgeText,
-                    color = badgeColor,
-                    fontWeight = FontWeight.ExtraBold,
-                    fontSize = 12.sp,
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                )
-            }
-
-            Surface(
-                color = Primary.copy(alpha = 0.08f),
-                shape = RoundedCornerShape(8.dp)
-            ) {
-                Text(
-                    text = "100% Free Engine",
-                    color = Primary,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 11.sp,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                )
-            }
-        }
-
-        // Timestamp Details
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(
-                text = "Last successful backup:",
-                fontSize = 12.sp,
-                color = Color.Gray,
-                fontWeight = FontWeight.Medium
-            )
-            Text(
-                text = lastBackupStr,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.ExtraBold,
-                color = Secondary
-            )
-        }
-
-        // Summary Text or Error
-        if (!status.errorMessage.isNullOrBlank()) {
-            Surface(
-                color = Color(0xFFFEF2F2),
-                shape = RoundedCornerShape(8.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    text = status.errorMessage,
-                    color = Color(0xFFEF4444),
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.padding(8.dp)
-                )
-            }
-        } else if (status.lastSyncSummary.isNotBlank()) {
-            Text(
-                text = status.lastSyncSummary,
-                fontSize = 11.sp,
-                color = Color.Gray,
-                fontWeight = FontWeight.Normal
-            )
-        }
-
-        HorizontalDivider(color = Color(0xFFF1F5F9))
-
-        // Actions: Sync Now & Open Sheet
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Button(
-                onClick = onSyncClick,
-                enabled = !isSyncing,
-                shape = RoundedCornerShape(10.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Primary),
-                modifier = Modifier.weight(1f).height(42.dp)
-            ) {
-                if (isSyncing) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(18.dp),
-                        color = Color.White,
-                        strokeWidth = 2.dp
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Syncing...", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                } else {
-                    Icon(Icons.Default.Sync, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Sync Now", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                }
-            }
-
-            if (!status.spreadsheetUrl.isNullOrBlank()) {
-                OutlinedButton(
-                    onClick = onOpenSheetClick,
-                    shape = RoundedCornerShape(10.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Primary),
-                    modifier = Modifier.weight(1f).height(42.dp)
-                ) {
-                    Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Open Sheet", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                }
-            }
-        }
-    }
-}
-

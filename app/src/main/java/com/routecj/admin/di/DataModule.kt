@@ -86,22 +86,10 @@ object DataModule {
     @Provides
     @Singleton
     fun provideVehicleRepository(
-        @dagger.hilt.android.qualifiers.ApplicationContext context: android.content.Context,
         firestore: FirebaseFirestore,
         storage: com.google.firebase.storage.FirebaseStorage
     ): VehicleRepository {
-        return FirestoreVehicleRepository(firestore, storage, context)
-    }
-
-    /**
-     * Provides BackupRepository implementation.
-     */
-    @Provides
-    @Singleton
-    fun provideBackupRepository(
-        firestore: FirebaseFirestore
-    ): com.routecj.admin.domain.repository.BackupRepository {
-        return com.routecj.admin.data.repository.FirestoreBackupRepository(firestore)
+        return FirestoreVehicleRepository(firestore, storage)
     }
 }
 

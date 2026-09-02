@@ -7,14 +7,10 @@ import com.routecj.admin.core.util.Result
 import com.routecj.admin.domain.model.Admin
 import com.routecj.admin.domain.repository.AuthRepository
 import com.routecj.admin.domain.repository.ProfileRepository
-import com.routecj.admin.domain.model.BackupStatus
-import com.routecj.admin.domain.repository.BackupRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -22,21 +18,10 @@ import javax.inject.Inject
 class SettingsViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val profileRepository: ProfileRepository,
-    private val backupRepository: BackupRepository,
     private val sessionManager: SessionManager
 ) : BaseViewModel() {
 
     val currentAdmin: StateFlow<Admin?> = sessionManager.currentAdmin
-
-    val backupStatus: StateFlow<Result<BackupStatus>> = backupRepository.observeBackupStatus()
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = Result.Loading()
-        )
-
-    private val _syncState = MutableStateFlow<Result<BackupStatus>?>(null)
-    val syncState: StateFlow<Result<BackupStatus>?> = _syncState.asStateFlow()
 
     private val _actionState = MutableStateFlow<Result<Unit>?>(null)
     val actionState: StateFlow<Result<Unit>?> = _actionState.asStateFlow()
@@ -75,20 +60,6 @@ class SettingsViewModel @Inject constructor(
                 _actionState.value = result
             }
         }
-    }
-
-    fun triggerBackupSync() {
-        launchIO {
-            _syncState.value = Result.Loading()
-            val result = backupRepository.triggerBackupSync()
-            withMain {
-                _syncState.value = result
-            }
-        }
-    }
-
-    fun clearSyncState() {
-        _syncState.value = null
     }
 
     fun logout() {

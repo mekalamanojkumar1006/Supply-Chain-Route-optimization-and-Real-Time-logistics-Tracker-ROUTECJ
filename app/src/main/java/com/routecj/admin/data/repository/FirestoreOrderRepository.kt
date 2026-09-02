@@ -2,6 +2,7 @@ package com.routecj.admin.data.repository
 
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
+import com.routecj.admin.core.util.OrderAddressMapper
 import com.routecj.admin.core.util.Result
 import com.routecj.admin.domain.model.Location
 import com.routecj.admin.domain.model.Order
@@ -134,28 +135,24 @@ class FirestoreOrderRepository @Inject constructor(
     private fun docToOrder(id: String, data: Map<String, Any>?): Order {
         val map = data ?: emptyMap()
 
+        val (canonicalPickupAddress, canonicalPickupPincode, originLoc) = OrderAddressMapper.extractPickupInfo(map)
+        val (canonicalDeliveryAddress, canonicalDeliveryPincode, destLoc) = OrderAddressMapper.extractDeliveryInfo(map)
+
         val orderNumber = map["orderNumber"] as? String ?: "#${id.take(6)}"
         val customerName = map["customerName"] as? String ?: ""
         val customerPhone = map["customerPhone"] as? String ?: ""
-        val customerAddress = map["customerAddress"] as? String ?: ""
-        val pickupLocation = map["pickupLocation"] as? String ?: ""
-        val deliveryLocation = map["deliveryLocation"] as? String ?: ""
-        val pickupAddress = (map["pickupAddress"] as? String)?.ifBlank { null } ?: pickupLocation
-        val pickupPincode = map["pickupPincode"] as? String ?: ""
-        val deliveryAddress = (map["deliveryAddress"] as? String)?.ifBlank { null } ?: deliveryLocation.ifBlank { customerAddress }
-        val deliveryPincode = map["deliveryPincode"] as? String ?: ""
+        val customerAddress = (map["customerAddress"] as? String)?.ifBlank { null } ?: canonicalDeliveryAddress
+        val pickupLocation = canonicalPickupAddress
+        val deliveryLocation = canonicalDeliveryAddress
+        val pickupAddress = canonicalPickupAddress
+        val pickupPincode = canonicalPickupPincode
+        val deliveryAddress = canonicalDeliveryAddress
+        val deliveryPincode = canonicalDeliveryPincode
         val orderType = map["orderType"] as? String ?: ""
         val weight = (map["weight"] as? Number)?.toDouble() ?: 0.0
         val quantity = (map["quantity"] as? Number)?.toInt() ?: 0
         val priority = map["priority"] as? String ?: "Medium"
-        val paymentStatus = (map["paymentStatus"] as? String)?.uppercase() ?: "PENDING"
-        val paymentMethod = (map["paymentMethod"] as? String)?.uppercase() ?: "CASH"
-        val paymentAmount = (map["paymentAmount"] as? Number)?.toDouble()
-            ?: (map["totalAmount"] as? Number)?.toDouble() ?: 0.0
-        val transactionId = map["transactionId"] as? String ?: ""
-        val paymentTimestamp = (map["paymentTimestamp"] as? com.google.firebase.Timestamp)?.toDate()
-            ?: (map["paymentTimestamp"] as? Date)
-        val paymentNotes = map["paymentNotes"] as? String ?: ""
+        val paymentStatus = map["paymentStatus"] as? String ?: "Pending"
         
         val statusStr = (map["status"] as? String) ?: "PENDING"
         val status = try { OrderStatus.valueOf(statusStr.uppercase()) } catch (_: Exception) { OrderStatus.PENDING }
@@ -173,15 +170,22 @@ class FirestoreOrderRepository @Inject constructor(
         val updatedAt = (map["updatedAt"] as? com.google.firebase.Timestamp)?.toDate()
             ?: (map["updatedAt"] as? Date) ?: Date()
 
-        // Handle nested Location objects
-        val destinationMap = map["destination"] as? Map<String, Any>
-        val destination = Location(
-            latitude = (destinationMap?.get("latitude") as? Number)?.toDouble() ?: 0.0,
-            longitude = (destinationMap?.get("longitude") as? Number)?.toDouble() ?: 0.0,
-            address = destinationMap?.get("address") as? String ?: (map["deliveryAddress"] as? String ?: ""),
-            city = destinationMap?.get("city") as? String ?: "",
-            state = destinationMap?.get("state") as? String ?: "",
-            pincode = destinationMap?.get("pincode") as? String ?: (map["deliveryPincode"] as? String ?: "")
+        val origin = if (originLoc.address.isNotBlank()) originLoc else Location(
+            latitude = 0.0,
+            longitude = 0.0,
+            address = pickupAddress,
+            city = "",
+            state = "",
+            pincode = pickupPincode
+        )
+
+        val destination = if (destLoc.address.isNotBlank()) destLoc else Location(
+            latitude = 0.0,
+            longitude = 0.0,
+            address = deliveryAddress,
+            city = "",
+            state = "",
+            pincode = deliveryPincode
         )
 
         return Order(
@@ -201,11 +205,6 @@ class FirestoreOrderRepository @Inject constructor(
             quantity = quantity,
             priority = priority,
             paymentStatus = paymentStatus,
-            paymentMethod = paymentMethod,
-            paymentAmount = paymentAmount,
-            transactionId = transactionId,
-            paymentTimestamp = paymentTimestamp,
-            paymentNotes = paymentNotes,
             status = status,
             assignedDriverId = assignedDriverId,
             assignedVehicleId = assignedVehicleId,
@@ -223,8 +222,9 @@ class FirestoreOrderRepository @Inject constructor(
             vehicleRegistration = map["vehicleRegistration"] as? String,
             vehicleType = map["vehicleType"] as? String,
             godownId = map["godownId"] as? String,
+            origin = origin,
             destination = destination,
-            totalAmount = paymentAmount,
+            totalAmount = (map["totalAmount"] as? Number)?.toDouble() ?: 0.0,
             trackingId = map["trackingId"] as? String ?: "",
             estimatedTime = map["estimatedTime"] as? String ?: "",
             notes = map["notes"] as? String ?: "",
@@ -352,26 +352,39 @@ class FirestoreOrderRepository @Inject constructor(
     }
 
     private fun orderToMap(order: Order): Map<String, Any> {
+        val pickupAddr = order.pickupAddress.ifBlank { order.pickupLocation }
+        val pickupPin = order.pickupPincode.ifBlank { OrderAddressMapper.extractPincodeFromText(pickupAddr) }
+        val delivAddr = order.deliveryAddress.ifBlank { order.deliveryLocation.ifBlank { order.customerAddress } }
+        val delivPin = order.deliveryPincode.ifBlank { OrderAddressMapper.extractPincodeFromText(delivAddr) }
+
         val map = mutableMapOf<String, Any>(
             "orderNumber" to order.orderNumber,
             "customerName" to order.customerName,
             "customerPhone" to order.customerPhone,
-            "customerAddress" to order.customerAddress,
-            "pickupLocation" to order.pickupLocation.ifBlank { order.pickupAddress },
-            "deliveryLocation" to order.deliveryLocation.ifBlank { order.deliveryAddress },
-            "pickupAddress" to order.pickupAddress.ifBlank { order.pickupLocation },
-            "pickupPincode" to order.pickupPincode,
-            "deliveryAddress" to order.deliveryAddress.ifBlank { order.deliveryLocation.ifBlank { order.customerAddress } },
-            "deliveryPincode" to order.deliveryPincode,
+            "customerAddress" to delivAddr,
+            "pickupLocation" to pickupAddr,
+            "deliveryLocation" to delivAddr,
+            "pickupAddress" to pickupAddr,
+            "pickup_address" to pickupAddr,
+            "pickupPincode" to pickupPin,
+            "pickup_pincode" to pickupPin,
+            "deliveryAddress" to delivAddr,
+            "delivery_address" to delivAddr,
+            "deliveryPincode" to delivPin,
+            "delivery_pincode" to delivPin,
+            "destinationAddress" to delivAddr,
+            "destinationPincode" to delivPin,
+            "originAddress" to pickupAddr,
+            "originPincode" to pickupPin,
+            "dropAddress" to delivAddr,
+            "dropPincode" to delivPin,
+            "receiverAddress" to delivAddr,
+            "receiverPincode" to delivPin,
             "orderType" to order.orderType,
             "weight" to order.weight,
             "quantity" to order.quantity,
             "priority" to order.priority,
             "paymentStatus" to order.paymentStatus,
-            "paymentMethod" to order.paymentMethod,
-            "paymentAmount" to (if (order.paymentAmount > 0.0) order.paymentAmount else order.totalAmount),
-            "transactionId" to order.transactionId,
-            "paymentNotes" to order.paymentNotes,
             "status" to order.status.name,
             "assignedDriverId" to (order.assignedDriverId ?: ""),
             "assignedVehicleId" to (order.assignedVehicleId ?: ""),
@@ -385,15 +398,23 @@ class FirestoreOrderRepository @Inject constructor(
             "driverId" to (order.driverId ?: ""),
             "vehicleId" to (order.vehicleId ?: ""),
             "godownId" to (order.godownId ?: ""),
+            "origin" to mapOf(
+                "latitude" to order.origin.latitude,
+                "longitude" to order.origin.longitude,
+                "address" to pickupAddr,
+                "city" to order.origin.city,
+                "state" to order.origin.state,
+                "pincode" to pickupPin
+            ),
             "destination" to mapOf(
                 "latitude" to order.destination.latitude,
                 "longitude" to order.destination.longitude,
-                "address" to order.destination.address,
+                "address" to delivAddr,
                 "city" to order.destination.city,
                 "state" to order.destination.state,
-                "pincode" to order.destination.pincode
+                "pincode" to delivPin
             ),
-            "totalAmount" to (if (order.paymentAmount > 0.0) order.paymentAmount else order.totalAmount),
+            "totalAmount" to order.totalAmount,
             "trackingId" to order.trackingId,
             "estimatedTime" to order.estimatedTime,
             "notes" to order.notes,
@@ -423,7 +444,6 @@ class FirestoreOrderRepository @Inject constructor(
             "deliveryRemarks" to order.deliveryRemarks
         )
 
-        order.paymentTimestamp?.let { map["paymentTimestamp"] = it }
         order.deliveredAt?.let { map["deliveredAt"] = it }
         order.qrId?.let { map["qrId"] = it }
         order.qrStatus?.let { map["qrStatus"] = it }

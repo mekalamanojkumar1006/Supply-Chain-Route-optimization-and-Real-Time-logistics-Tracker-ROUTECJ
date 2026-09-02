@@ -29,8 +29,9 @@ object FirebaseModule {
     @Provides
     @Singleton
     fun provideFirebaseStorage(): com.google.firebase.storage.FirebaseStorage {
-        // Uses default storage bucket configured in google-services.json
-        return com.google.firebase.storage.FirebaseStorage.getInstance()
+        // Explicitly specifying the bucket from google-services.json to prevent "Object not found" errors
+        // caused by incorrect default bucket initialization in multi-project environments.
+        return com.google.firebase.storage.FirebaseStorage.getInstance("gs://supplychaintracking-21492.firebasestorage.app")
     }
 
     @Provides

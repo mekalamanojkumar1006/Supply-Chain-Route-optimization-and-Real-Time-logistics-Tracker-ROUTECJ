@@ -49,19 +49,14 @@ fun TrackingScreen(
     val selectedTab by viewModel.selectedTab.collectAsStateWithLifecycle()
     val actionState by viewModel.actionState.collectAsStateWithLifecycle()
     val mainStore by viewModel.mainStore.collectAsStateWithLifecycle()
-    var isFleetMapMode by remember { mutableStateOf(false) }
 
     LaunchedEffect(actionState) {
-        when (val res = actionState) {
-            is Result.Success -> {
-                Toast.makeText(context, "Action completed successfully!", Toast.LENGTH_SHORT).show()
-                viewModel.clearActionState()
-            }
-            is Result.Error -> {
-                Toast.makeText(context, res.message, Toast.LENGTH_LONG).show()
-                viewModel.clearActionState()
-            }
-            else -> {}
+        if (actionState is Result.Success) {
+            Toast.makeText(context, "Action completed successfully!", Toast.LENGTH_SHORT).show()
+            viewModel.clearActionState()
+        } else if (actionState is Result.Error) {
+            Toast.makeText(context, (actionState as Result.Error).message, Toast.LENGTH_LONG).show()
+            viewModel.clearActionState()
         }
     }
 
@@ -71,9 +66,7 @@ fun TrackingScreen(
                 title = { 
                     Column {
                         Text(
-                            text = if (selectedTrip != null) "Active Trip Details"
-                            else if (isFleetMapMode) "Fleet Live Command Map"
-                            else "Active Trips Command Center",
+                            text = if (selectedTrip == null) "Active Trips Command Center" else "Active Trip Details",
                             fontWeight = FontWeight.ExtraBold,
                             fontSize = 18.sp
                         )
@@ -89,22 +82,10 @@ fun TrackingScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = { 
-                        if (selectedTrip != null) viewModel.selectTrip(null)
-                        else if (isFleetMapMode) isFleetMapMode = false
-                        else navController.popBackStack()
+                        if (selectedTrip == null) navController.popBackStack()
+                        else viewModel.selectTrip(null)
                     }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                actions = {
-                    if (selectedTrip == null) {
-                        IconButton(onClick = { isFleetMapMode = !isFleetMapMode }) {
-                            Icon(
-                                imageVector = if (isFleetMapMode) Icons.Default.FormatListBulleted else Icons.Default.Map,
-                                contentDescription = if (isFleetMapMode) "List View" else "Fleet Map",
-                                tint = Primary
-                            )
-                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
@@ -119,14 +100,6 @@ fun TrackingScreen(
                     mainStore = mainStore,
                     onBack = { viewModel.selectTrip(null) },
                     onUpdateStatus = { status -> viewModel.updateDispatchStatus(selectedTrip!!.dispatchId, status) }
-                )
-            } else if (isFleetMapMode && filteredTripsState is Result.Success) {
-                val trips = (filteredTripsState as Result.Success).data
-                OsmTrackingMapView(
-                    allTrips = trips,
-                    storeLocation = mainStore,
-                    modifier = Modifier.fillMaxSize(),
-                    onTripSelected = { viewModel.selectTrip(it) }
                 )
             } else {
                 Column(modifier = Modifier.fillMaxSize()) {

@@ -7,14 +7,20 @@ service firebase.storage {
       return request.auth != null;
     }
 
+    function getAdminData() {
+      return firestore.get(/databases/(default)/documents/admins/$(request.auth.uid)).data;
+    }
+
     function isAdminOrSuperAdmin() {
-      return isAuthenticated() && (
-        !firestore.exists(/databases/(default)/documents/admins/$(request.auth.uid)) ||
-        firestore.get(/databases/(default)/documents/admins/$(request.auth.uid)).data.role in [
-          'SUPER_ADMIN', 'ADMIN001', 'ADMIN', 'ADMIN002', 'DISPATCH_MANAGER', 'ADMIN004', 'GODOWN_MANAGER', 'ADMIN003',
-          'Super Admin', 'Admin', 'Dispatch Manager', 'Godown Manager'
-        ]
-      );
+      let admin = getAdminData();
+      return admin.role == "SUPER_ADMIN" || 
+             admin.role == "ADMIN001" || 
+             admin.role == "ADMIN" || 
+             admin.role == "ADMIN002" || 
+             admin.role == "DISPATCH_MANAGER" || 
+             admin.role == "ADMIN004" || 
+             admin.role == "GODOWN_MANAGER" || 
+             admin.role == "ADMIN003";
     }
 
     // Vehicle images bucket path: vehicles/{vehicleId}/{fileName}
@@ -24,20 +30,20 @@ service firebase.storage {
       
       // Only authenticated RouteCJ staff/admins can upload/update/delete vehicle images
       // Validates content type (images only) and max size 10MB
-      allow create, update: if isAdminOrSuperAdmin() &&
-                            request.resource.size < 10 * 1024 * 1024 &&
-                            request.resource.contentType.matches('image/.*');
+      allow write: if isAuthenticated() && 
+                   request.resource.size < 10 * 1024 * 1024 &&
+                   request.resource.contentType.matches('image/.*');
       
-      allow delete: if isAdminOrSuperAdmin();
+      allow delete: if isAuthenticated();
     }
 
     // Driver profile images
     match /drivers/{driverId}/{fileName} {
       allow read: if isAuthenticated();
-      allow create, update: if isAdminOrSuperAdmin() &&
-                            request.resource.size < 10 * 1024 * 1024 &&
-                            request.resource.contentType.matches('image/.*');
-      allow delete: if isAdminOrSuperAdmin();
+      allow write: if isAuthenticated() && 
+                   request.resource.size < 10 * 1024 * 1024 &&
+                   request.resource.contentType.matches('image/.*');
+      allow delete: if isAuthenticated();
     }
   }
 }

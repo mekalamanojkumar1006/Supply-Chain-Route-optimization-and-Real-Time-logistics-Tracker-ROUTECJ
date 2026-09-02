@@ -21,6 +21,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.routecj.admin.core.util.Constants
+import com.routecj.admin.core.util.OrderAddressMapper
 import com.routecj.admin.core.util.Result
 import com.routecj.admin.domain.model.Order
 import com.routecj.admin.domain.model.OrderStatus
@@ -158,10 +159,10 @@ fun ParcelDetailsScreen(
                         Text("ROUTE & LOCATION INFORMATION", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = Color.Gray)
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        val pickupAddr = (o.pickupAddress.ifBlank { o.pickupLocation }).ifBlank { "Pickup Address not available" }
-                        val pickupPin = if (o.pickupPincode.isNotBlank()) o.pickupPincode else "PIN not available"
-                        val deliveryAddr = (o.deliveryAddress.ifBlank { o.deliveryLocation }).ifBlank { "Delivery Address not available" }
-                        val deliveryPin = if (o.deliveryPincode.isNotBlank()) o.deliveryPincode else "PIN not available"
+                        val pickupAddr = o.pickupAddress.ifBlank { o.pickupLocation.ifBlank { "Pickup Address not available" } }
+                        val pickupPin = o.pickupPincode.ifBlank { OrderAddressMapper.extractPincodeFromText(pickupAddr).ifBlank { "PIN not available" } }
+                        val deliveryAddr = o.deliveryAddress.ifBlank { o.deliveryLocation.ifBlank { o.customerAddress.ifBlank { "Delivery Address not available" } } }
+                        val deliveryPin = o.deliveryPincode.ifBlank { OrderAddressMapper.extractPincodeFromText(deliveryAddr).ifBlank { "PIN not available" } }
 
                         DetailRow(Icons.Default.TripOrigin, "Pickup Address", pickupAddr)
                         DetailRow(Icons.Default.PinDrop, "Pickup PIN Code", pickupPin)
@@ -169,10 +170,6 @@ fun ParcelDetailsScreen(
                         DetailRow(Icons.Default.LocationOn, "Delivery Address", deliveryAddr)
                         DetailRow(Icons.Default.PinDrop, "Delivery PIN Code", deliveryPin)
                     }
-                }
-
-                item {
-                    com.routecj.admin.presentation.orders.PaymentInfoSection(order = o)
                 }
 
                 item {

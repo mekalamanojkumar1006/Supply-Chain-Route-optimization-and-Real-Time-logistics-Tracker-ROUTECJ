@@ -9,8 +9,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -206,51 +204,22 @@ fun PremiumFleetVehicleCard(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.Top
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Box(
-                    modifier = Modifier
-                        .size(46.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Primary.copy(alpha = 0.12f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    var imageLoadFailed by remember { mutableStateOf(false) }
-                    if (!vehicle.imageUrl.isNullOrBlank() && !imageLoadFailed) {
-                        coil.compose.AsyncImage(
-                            model = vehicle.imageUrl,
-                            contentDescription = "Vehicle Photo",
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                            onError = { imageLoadFailed = true }
-                        )
-                    } else {
-                        Icon(
-                            Icons.Default.LocalShipping,
-                            contentDescription = null,
-                            tint = Primary,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                }
-
-                Column {
-                    // Primary Visual Identifier: Registration Number
-                    Text(
-                        text = vehicle.registrationNumber,
-                        fontWeight = FontWeight.ExtraBold,
-                        style = MaterialTheme.typography.titleLarge,
-                        color = Primary,
-                        letterSpacing = 1.sp
-                    )
-                    Text(
-                        text = "${vehicle.vehicleType.name} • ${vehicle.brand} ${vehicle.model}",
-                        fontSize = 12.sp,
-                        color = Secondary,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
+            Column {
+                // Primary Visual Identifier: Registration Number
+                Text(
+                    text = vehicle.registrationNumber,
+                    fontWeight = FontWeight.ExtraBold,
+                    style = MaterialTheme.typography.titleLarge,
+                    color = Primary,
+                    letterSpacing = 1.sp
+                )
+                Text(
+                    text = "${vehicle.vehicleType.name} • ${vehicle.brand} ${vehicle.model}",
+                    fontSize = 12.sp,
+                    color = Secondary,
+                    fontWeight = FontWeight.Bold
+                )
             }
-
             PremiumStatusChip(text = displayStatus, color = statusColor)
         }
 

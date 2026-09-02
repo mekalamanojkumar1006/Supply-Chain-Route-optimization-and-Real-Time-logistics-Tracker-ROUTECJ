@@ -16,7 +16,7 @@ data class AdminDto(
     val phone: String = "",
     val role: String = "",
     val status: String = "",
-    val lastLogin: Any? = null,
+    val lastLogin: String = "",
     val profileImage: String? = null,
     val notificationsEnabled: Boolean = true,
     val orderAlertsEnabled: Boolean = true,
@@ -33,20 +33,6 @@ data class AdminDto(
         Log.d("ROLE_DEBUG", "Normalized Role: '${role.trim().lowercase()}'")
         Log.d("ROLE_DEBUG", "Matched Role Enum: $matchedRole")
         
-        val formattedLastLogin = when (lastLogin) {
-            is com.google.firebase.Timestamp -> {
-                java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()).format(lastLogin.toDate())
-            }
-            is java.util.Date -> {
-                java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()).format(lastLogin)
-            }
-            is Number -> {
-                java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date(lastLogin.toLong()))
-            }
-            is String -> lastLogin
-            else -> ""
-        }
-
         return Admin(
             uid = uid,
             adminId = adminId,
@@ -55,7 +41,7 @@ data class AdminDto(
             phone = phone,
             role = matchedRole,
             status = status,
-            lastLogin = formattedLastLogin,
+            lastLogin = lastLogin,
             profileImage = profileImage,
             notificationsEnabled = notificationsEnabled,
             orderAlertsEnabled = orderAlertsEnabled,

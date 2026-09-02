@@ -29,8 +29,6 @@ import com.routecj.admin.core.util.Constants
 import com.routecj.admin.core.util.Result
 import com.routecj.admin.domain.model.Order
 import com.routecj.admin.domain.model.OrderStatus
-import com.routecj.admin.domain.model.PaymentMethod
-import com.routecj.admin.domain.model.PaymentStatus
 import com.routecj.admin.presentation.components.*
 import com.routecj.admin.presentation.orders.OrdersViewModel
 import com.routecj.admin.ui.theme.Primary
@@ -76,13 +74,6 @@ fun AddParcelScreen(
     var isFragile by remember { mutableStateOf(false) }
     var specialInstructions by remember { mutableStateOf("") }
     var priority by remember { mutableStateOf("Medium") }
-
-    // --- State for Payment Details (Defaults to PENDING) ---
-    var paymentStatus by remember { mutableStateOf(PaymentStatus.PENDING) }
-    var paymentMethod by remember { mutableStateOf(PaymentMethod.CASH) }
-    var paymentAmountText by remember { mutableStateOf("") }
-    var transactionId by remember { mutableStateOf("") }
-    var paymentNotes by remember { mutableStateOf("") }
 
     var validationError by remember { mutableStateOf<String?>(null) }
     val actionState by viewModel.actionState.collectAsStateWithLifecycle()
@@ -606,213 +597,6 @@ fun AddParcelScreen(
                             }
                         }
 
-                        // Section 6: Payment Details
-                        item {
-                            BentoCard(modifier = Modifier.fillMaxWidth()) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = "PAYMENT DETAILS",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = FontWeight.Black,
-                                        color = Color(0xFF64748B)
-                                    )
-                                    Surface(
-                                        color = when (paymentStatus) {
-                                            PaymentStatus.PAID -> Color(0xFF10B981).copy(alpha = 0.15f)
-                                            PaymentStatus.PENDING -> Color(0xFFF59E0B).copy(alpha = 0.15f)
-                                            PaymentStatus.PARTIALLY_PAID -> Color(0xFF3B82F6).copy(alpha = 0.15f)
-                                            PaymentStatus.COD -> Color(0xFF8B5CF6).copy(alpha = 0.15f)
-                                            PaymentStatus.FAILED -> Color(0xFFEF4444).copy(alpha = 0.15f)
-                                            PaymentStatus.REFUNDED -> Color(0xFF6B7280).copy(alpha = 0.15f)
-                                        },
-                                        shape = RoundedCornerShape(6.dp)
-                                    ) {
-                                        Text(
-                                            text = paymentStatus.name.replace("_", " "),
-                                            color = when (paymentStatus) {
-                                                PaymentStatus.PAID -> Color(0xFF10B981)
-                                                PaymentStatus.PENDING -> Color(0xFFF59E0B)
-                                                PaymentStatus.PARTIALLY_PAID -> Color(0xFF3B82F6)
-                                                PaymentStatus.COD -> Color(0xFF8B5CF6)
-                                                PaymentStatus.FAILED -> Color(0xFFEF4444)
-                                                PaymentStatus.REFUNDED -> Color(0xFF9CA3AF)
-                                            },
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.ExtraBold,
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                                        )
-                                    }
-                                }
-                                Spacer(modifier = Modifier.height(12.dp))
-
-                                // Payment Status Selector
-                                Text("Payment Status *", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    listOf(PaymentStatus.PENDING, PaymentStatus.PAID, PaymentStatus.COD).forEach { status ->
-                                        val isSelected = paymentStatus == status
-                                        FilterChip(
-                                            selected = isSelected,
-                                            onClick = {
-                                                paymentStatus = status
-                                                if (status == PaymentStatus.COD) {
-                                                    paymentMethod = PaymentMethod.COD
-                                                } else if (paymentMethod == PaymentMethod.COD) {
-                                                    paymentMethod = PaymentMethod.CASH
-                                                }
-                                            },
-                                            label = { Text(status.name.replace("_", " "), fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium) },
-                                            modifier = Modifier.weight(1f),
-                                            colors = FilterChipDefaults.filterChipColors(
-                                                selectedContainerColor = Primary,
-                                                selectedLabelColor = Color.Black
-                                            )
-                                        )
-                                    }
-                                }
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    listOf(PaymentStatus.PARTIALLY_PAID, PaymentStatus.FAILED, PaymentStatus.REFUNDED).forEach { status ->
-                                        val isSelected = paymentStatus == status
-                                        FilterChip(
-                                            selected = isSelected,
-                                            onClick = {
-                                                paymentStatus = status
-                                                if (status == PaymentStatus.COD) {
-                                                    paymentMethod = PaymentMethod.COD
-                                                } else if (paymentMethod == PaymentMethod.COD) {
-                                                    paymentMethod = PaymentMethod.CASH
-                                                }
-                                            },
-                                            label = { Text(status.name.replace("_", " "), fontSize = 10.sp, fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium) },
-                                            modifier = Modifier.weight(1f),
-                                            colors = FilterChipDefaults.filterChipColors(
-                                                selectedContainerColor = Primary,
-                                                selectedLabelColor = Color.Black
-                                            )
-                                        )
-                                    }
-                                }
-
-                                Spacer(modifier = Modifier.height(10.dp))
-
-                                // Payment Method Selector
-                                Text("Payment Method *", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    listOf(PaymentMethod.CASH, PaymentMethod.UPI, PaymentMethod.CARD).forEach { method ->
-                                        val isSelected = paymentMethod == method
-                                        FilterChip(
-                                            selected = isSelected,
-                                            onClick = {
-                                                paymentMethod = method
-                                                if (method == PaymentMethod.COD) paymentStatus = PaymentStatus.COD
-                                            },
-                                            label = { Text(method.name.replace("_", " "), fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium) },
-                                            modifier = Modifier.weight(1f),
-                                            colors = FilterChipDefaults.filterChipColors(
-                                                selectedContainerColor = Primary,
-                                                selectedLabelColor = Color.Black
-                                            )
-                                        )
-                                    }
-                                }
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    listOf(PaymentMethod.BANK_TRANSFER, PaymentMethod.COD, PaymentMethod.OTHER).forEach { method ->
-                                        val isSelected = paymentMethod == method
-                                        FilterChip(
-                                            selected = isSelected,
-                                            onClick = {
-                                                paymentMethod = method
-                                                if (method == PaymentMethod.COD) paymentStatus = PaymentStatus.COD
-                                            },
-                                            label = { Text(method.name.replace("_", " "), fontSize = 10.sp, fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium) },
-                                            modifier = Modifier.weight(1f),
-                                            colors = FilterChipDefaults.filterChipColors(
-                                                selectedContainerColor = Primary,
-                                                selectedLabelColor = Color.Black
-                                            )
-                                        )
-                                    }
-                                }
-
-                                Spacer(modifier = Modifier.height(10.dp))
-
-                                // Amount Field
-                                OutlinedTextField(
-                                    value = paymentAmountText,
-                                    onValueChange = { input ->
-                                        if (input.isEmpty() || input.matches(Regex("""^\d*\.?\d*$"""))) {
-                                            paymentAmountText = input
-                                        }
-                                    },
-                                    label = { Text("Payment Amount (₹)") },
-                                    placeholder = { Text("e.g. 1500.00") },
-                                    prefix = { Text("₹ ", fontWeight = FontWeight.Bold, color = Primary) },
-                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                                    singleLine = true,
-                                    modifier = Modifier.fillMaxWidth(),
-                                    shape = RoundedCornerShape(12.dp),
-                                    colors = routeCJTextFieldColors()
-                                )
-
-                                if (paymentMethod == PaymentMethod.UPI) {
-                                    Spacer(modifier = Modifier.height(10.dp))
-                                    UpiPaymentQrCard(
-                                        amount = paymentAmountText.toDoubleOrNull() ?: 0.0,
-                                        orderNumber = orderNumber
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.height(10.dp))
-
-                                // Transaction ID
-                                val isElectronic = paymentMethod == PaymentMethod.UPI || paymentMethod == PaymentMethod.CARD || paymentMethod == PaymentMethod.BANK_TRANSFER
-                                val isPaidState = paymentStatus == PaymentStatus.PAID || paymentStatus == PaymentStatus.PARTIALLY_PAID
-                                OutlinedTextField(
-                                    value = transactionId,
-                                    onValueChange = { transactionId = it },
-                                    label = {
-                                        Text(if (isElectronic && isPaidState) "Transaction / Reference ID *" else "Transaction / Reference ID (Optional)")
-                                    },
-                                    placeholder = { Text("e.g. UPI-9876543210 or TXN123456") },
-                                    singleLine = true,
-                                    modifier = Modifier.fillMaxWidth(),
-                                    shape = RoundedCornerShape(12.dp),
-                                    colors = routeCJTextFieldColors()
-                                )
-
-                                Spacer(modifier = Modifier.height(10.dp))
-
-                                // Payment Notes
-                                OutlinedTextField(
-                                    value = paymentNotes,
-                                    onValueChange = { paymentNotes = it },
-                                    label = { Text("Payment Notes (Optional)") },
-                                    placeholder = { Text("e.g. Customer paid advance ₹500 through UPI") },
-                                    maxLines = 2,
-                                    modifier = Modifier.fillMaxWidth(),
-                                    shape = RoundedCornerShape(12.dp),
-                                    colors = routeCJTextFieldColors()
-                                )
-                            }
-                        }
-
                         // Validation Error Display
                         if (validationError != null) {
                             item {
@@ -889,26 +673,11 @@ fun AddParcelScreen(
                                         return@Button
                                     }
 
-                                    val amt = paymentAmountText.toDoubleOrNull() ?: 0.0
-                                    if (amt < 0.0) {
-                                        validationError = "Payment amount cannot be negative."
-                                        return@Button
-                                    }
-
-                                    val isElectronicMethod = paymentMethod == PaymentMethod.UPI || paymentMethod == PaymentMethod.CARD || paymentMethod == PaymentMethod.BANK_TRANSFER
-                                    val isPaidOrPartial = paymentStatus == PaymentStatus.PAID || paymentStatus == PaymentStatus.PARTIALLY_PAID
-                                    if (isPaidOrPartial && isElectronicMethod && transactionId.isBlank()) {
-                                        validationError = "Transaction / Reference ID is required for ${paymentMethod.name.replace("_", " ")} payments."
-                                        return@Button
-                                    }
-
                                     validationError = null
 
                                     val currentUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
                                     val currentUid = currentUser?.uid ?: ""
                                     val currentEmail = currentUser?.email ?: "ADMIN003"
-
-                                    val paymentDate = if (isPaidOrPartial) Date() else null
 
                                     val newOrder = Order(
                                         id = UUID.randomUUID().toString(),
@@ -926,13 +695,7 @@ fun AddParcelScreen(
                                         weight = weightVal,
                                         quantity = qty,
                                         priority = priority,
-                                        paymentStatus = paymentStatus.name,
-                                        paymentMethod = paymentMethod.name,
-                                        paymentAmount = amt,
-                                        transactionId = transactionId.trim(),
-                                        paymentTimestamp = paymentDate,
-                                        paymentNotes = paymentNotes.trim(),
-                                        totalAmount = amt,
+                                        paymentStatus = "Paid",
                                         status = OrderStatus.PENDING_GODOWN_REVIEW,
                                         remarks = specialInstructions.trim(),
                                         createdAt = Date(),

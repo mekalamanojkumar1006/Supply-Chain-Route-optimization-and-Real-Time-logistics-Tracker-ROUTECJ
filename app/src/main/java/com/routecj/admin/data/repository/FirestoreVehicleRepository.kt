@@ -22,8 +22,7 @@ import com.google.firebase.storage.FirebaseStorage
  */
 class FirestoreVehicleRepository @Inject constructor(
     private val firestore: FirebaseFirestore,
-    private val storage: FirebaseStorage,
-    @dagger.hilt.android.qualifiers.ApplicationContext private val context: android.content.Context
+    private val storage: FirebaseStorage
 ) : VehicleRepository {
 
     override suspend fun getAllVehicles(): Flow<Result<List<Vehicle>>> = callbackFlow {
@@ -111,98 +110,60 @@ class FirestoreVehicleRepository @Inject constructor(
     }
 
     override suspend fun uploadVehicleImage(vehicleId: String, imageUri: android.net.Uri): Result<String> = try {
-        Log.d("VEHICLE_IMAGE_UPLOAD", "Starting upload for vehicleId='$vehicleId', uri='$imageUri'")
-
-        // 1. Ensure valid document ID
-        val cleanVehicleId = vehicleId.trim().ifBlank { firestore.collection("vehicles").document().id }
-        val storageVehicleId = cleanVehicleId.filter { it.isLetterOrDigit() || it == '-' || it == '_' }
-        val filename = "vehicle_${storageVehicleId}_${System.currentTimeMillis()}.jpg"
+        // 1. Sanitize vehicleId for storage path (remove spaces/special chars)
+        val storageVehicleId = vehicleId.trim().filter { it.isLetterOrDigit() || it == '-' || it == '_' }
+        val filename = "vehicle_${System.currentTimeMillis()}.jpg"
         val storagePath = "vehicles/$storageVehicleId/$filename"
-
-        Log.d("VEHICLE_IMAGE_UPLOAD", "Configured storage path: $storagePath")
-
-        // 2. Safely check for and clean up previous image (optional, won't break on failure)
-        try {
-            val vehicleDoc = firestore.collection("vehicles").document(cleanVehicleId).get().await()
-            if (vehicleDoc.exists()) {
-                val oldImageUrl = vehicleDoc.getString("imageUrl")
-                if (!oldImageUrl.isNullOrBlank()) {
-                    Log.d("VEHICLE_IMAGE_UPLOAD", "Cleaning up previous image: $oldImageUrl")
-                    storage.getReferenceFromUrl(oldImageUrl).delete().await()
-                }
+        
+        timber.log.Timber.tag("ROUTECJ_STORAGE").d("INITIATING UPLOAD: vehicleId='$vehicleId', storageId='$storageVehicleId', path='$storagePath'")
+        
+        // 2. Fetch current vehicle document to check for previous image
+        val vehicleDoc = firestore.collection("vehicles").document(vehicleId).get().await()
+        val oldImageUrl = vehicleDoc.getString("imageUrl")
+        
+        // 3. If previous image exists, try to delete it safely (do not fail if it does not exist)
+        if (!oldImageUrl.isNullOrBlank()) {
+            try {
+                timber.log.Timber.tag("ROUTECJ_STORAGE").d("Attempting to delete previous vehicle image: $oldImageUrl")
+                val oldStorageRef = storage.getReferenceFromUrl(oldImageUrl)
+                oldStorageRef.delete().await()
+                timber.log.Timber.tag("ROUTECJ_STORAGE").d("Previous vehicle image deleted successfully")
+            } catch (e: Exception) {
+                timber.log.Timber.tag("ROUTECJ_STORAGE").w("Previous image could not be deleted (ignored): ${e.message}")
             }
-        } catch (e: Exception) {
-            Log.w("VEHICLE_IMAGE_UPLOAD", "Previous image cleanup skipped or failed: ${e.message}")
         }
-
-        // 3. Open InputStream via ContentResolver & detect MIME type
-        val contentResolver = context.contentResolver
-        val rawMimeType = contentResolver.getType(imageUri)
-        val mimeType = if (!rawMimeType.isNullOrBlank() && rawMimeType.startsWith("image/")) rawMimeType else "image/jpeg"
-
-        Log.d("VEHICLE_IMAGE_UPLOAD", "Opening ContentResolver stream. Detected MIME type: $mimeType")
-        val inputStream = contentResolver.openInputStream(imageUri)
-            ?: throw IllegalStateException("Could not open ContentResolver stream for image URI: $imageUri")
-
-        val imageBytes = inputStream.use { it.readBytes() }
-        if (imageBytes.isEmpty()) {
-            throw IllegalStateException("Selected image file contains 0 bytes.")
-        }
-
-        Log.d("VEHICLE_IMAGE_UPLOAD", "Read ${imageBytes.size} bytes from image stream.")
-
-        // 4. Create explicit StorageMetadata (Crucial for storage rules validation)
-        val metadata = com.google.firebase.storage.StorageMetadata.Builder()
-            .setContentType(mimeType)
-            .setCustomMetadata("vehicleId", cleanVehicleId)
-            .build()
-
-        // 5. Perform Storage Upload with explicit metadata
+        
+        // 4. Reference for new upload using child chaining
         val storageRef = storage.reference.child("vehicles").child(storageVehicleId).child(filename)
-        Log.d("VEHICLE_IMAGE_UPLOAD", "Uploading byte array (${imageBytes.size} bytes) to path: ${storageRef.path}")
-
-        val uploadTask = storageRef.putBytes(imageBytes, metadata).await()
-        Log.d("VEHICLE_IMAGE_UPLOAD", "Upload complete: bytesTransferred=${uploadTask.bytesTransferred}")
-
-        // 6. Get Download URL
+        
+        // 5. Perform Upload
+        timber.log.Timber.tag("ROUTECJ_STORAGE").d("Uploading bytes from URI: $imageUri to path: ${storageRef.path}")
+        val uploadTask = storageRef.putFile(imageUri).await()
+        timber.log.Timber.tag("ROUTECJ_STORAGE").d("UPLOAD SUCCESSFUL: bytes=${uploadTask.bytesTransferred}")
+        
+        // 6. Retrieve Download URL
         val downloadUrl = storageRef.downloadUrl.await().toString()
-        Log.d("VEHICLE_IMAGE_UPLOAD", "Download URL generated: $downloadUrl")
-
-        // 7. Update Firestore Vehicle Document using SetOptions.merge()
-        val updateMap = mapOf(
-            "imageUrl" to downloadUrl,
-            "updatedAt" to Date()
-        )
-        firestore.collection("vehicles").document(cleanVehicleId)
-            .set(updateMap, com.google.firebase.firestore.SetOptions.merge())
-            .await()
-
-        Log.d("VEHICLE_IMAGE_UPLOAD", "Firestore vehicle document updated successfully for vehicleId='$cleanVehicleId'")
-
+        timber.log.Timber.tag("ROUTECJ_STORAGE").d("DOWNLOAD URL RETRIEVED: $downloadUrl")
+        
+        // 7. Update Firestore with new download URL
+        firestore.collection("vehicles").document(vehicleId).update("imageUrl", downloadUrl, "updatedAt", Date()).await()
+        timber.log.Timber.tag("ROUTECJ_STORAGE").d("FIRESTORE UPDATED for vehicle: $vehicleId")
+        
         Result.Success(downloadUrl)
     } catch (e: com.google.firebase.storage.StorageException) {
-        val userError = when (e.errorCode) {
-            com.google.firebase.storage.StorageException.ERROR_NOT_AUTHORIZED -> "Firebase Storage permission denied."
-            com.google.firebase.storage.StorageException.ERROR_NOT_AUTHENTICATED -> "User session expired. Please re-login."
-            com.google.firebase.storage.StorageException.ERROR_BUCKET_NOT_FOUND -> "Firebase Storage is not enabled or bucket was not found for this project."
-            com.google.firebase.storage.StorageException.ERROR_RETRY_LIMIT_EXCEEDED -> "Upload network timeout. Please check your connection."
-            else -> e.message ?: "Firebase Storage error [Code ${e.errorCode}]"
+        val errorMessage = when (e.errorCode) {
+            com.google.firebase.storage.StorageException.ERROR_OBJECT_NOT_FOUND -> "Object does not exist at location (Not Found)"
+            com.google.firebase.storage.StorageException.ERROR_NOT_AUTHENTICATED -> "User not authenticated for storage. Please re-login."
+            com.google.firebase.storage.StorageException.ERROR_NOT_AUTHORIZED -> "Permission denied by storage rules."
+            com.google.firebase.storage.StorageException.ERROR_RETRY_LIMIT_EXCEEDED -> "Upload timed out or retry limit reached."
+            com.google.firebase.storage.StorageException.ERROR_BUCKET_NOT_FOUND -> "Vehicle image upload failed. Firebase Storage bucket not found or not initialized."
+            else -> e.message ?: "Storage error occurred"
         }
-        val storagePath = "vehicles/$vehicleId"
-        Log.e(
-            "VEHICLE_IMAGE_UPLOAD",
-            "StorageException for vehicleId='$vehicleId', path='$storagePath', errorCode=${e.errorCode}, message='${e.message}'",
-            e
-        )
-        Result.Error("Vehicle image upload failed: $userError", throwable = e)
+        timber.log.Timber.tag("ROUTECJ_STORAGE").e(e, "STORAGE_ERROR ($errorMessage): code=${e.errorCode}")
+        Result.Error(errorMessage, throwable = e)
     } catch (e: Exception) {
-        val storagePath = "vehicles/$vehicleId"
-        Log.e(
-            "VEHICLE_IMAGE_UPLOAD",
-            "Unexpected error uploading vehicle image for vehicleId='$vehicleId', path='$storagePath', message='${e.message}'",
-            e
-        )
-        Result.Error("Vehicle image upload failed: ${e.localizedMessage ?: e.message ?: "Unknown error"}", throwable = e)
+        timber.log.Timber.tag("ROUTECJ_STORAGE").e(e, "UNEXPECTED_UPLOAD_ERROR: ${e.message}")
+        Result.Error("Vehicle image upload failed. Please check Firebase Storage configuration and try again.", throwable = e)
     }
 
     private fun docToVehicleLog(id: String, data: Map<String, Any>?, vehicleId: String): VehicleLog {

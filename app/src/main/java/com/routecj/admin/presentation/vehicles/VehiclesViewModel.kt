@@ -130,74 +130,16 @@ class VehiclesViewModel @Inject constructor(
     }
 
     /**
-     * Create a new vehicle with optional image upload.
-     */
-    fun createVehicleWithImage(vehicle: Vehicle, imageUri: android.net.Uri?) {
-        launchIO {
-            withMain { _actionState.value = Result.Loading() }
-
-            // 1. Create Vehicle in Firestore first
-            val createResult = createVehicleUseCase(vehicle)
-            if (createResult is Result.Error) {
-                withMain { _actionState.value = Result.Error(createResult.message, createResult.code, createResult.throwable) }
-                return@launchIO
-            }
-
-            val createdVehicle = (createResult as? Result.Success)?.data ?: vehicle
-            val vehicleId = createdVehicle.id
-
-            // 2. If image is selected, upload image to Storage and update imageUrl in Firestore
-            if (imageUri != null && vehicleId.isNotBlank()) {
-                val uploadResult = vehicleRepository.uploadVehicleImage(vehicleId, imageUri)
-                if (uploadResult is Result.Error) {
-                    withMain { _actionState.value = Result.Error("Vehicle saved, but photo upload failed: ${uploadResult.message}") }
-                    return@launchIO
-                }
-            }
-
-            withMain {
-                _actionState.value = Result.Success(Unit)
-                fetchVehicles()
-            }
-        }
-    }
-
-    /**
-     * Create a new vehicle without image.
+     * Create a new vehicle.
      */
     fun createVehicle(vehicle: Vehicle) {
-        createVehicleWithImage(vehicle, null)
-    }
-
-    /**
-     * Update an existing vehicle's details and optional new image.
-     */
-    fun updateVehicleWithImage(vehicle: Vehicle, imageUri: android.net.Uri?) {
         launchIO {
             withMain { _actionState.value = Result.Loading() }
-
-            var updatedVehicle = vehicle
-
-            // 1. If a new image was picked, upload it first
-            if (imageUri != null && vehicle.id.isNotBlank()) {
-                val uploadResult = vehicleRepository.uploadVehicleImage(vehicle.id, imageUri)
-                if (uploadResult is Result.Success) {
-                    updatedVehicle = vehicle.copy(imageUrl = uploadResult.data)
-                } else if (uploadResult is Result.Error) {
-                    withMain { _actionState.value = Result.Error("Vehicle photo upload failed: ${uploadResult.message}") }
-                    return@launchIO
-                }
-            }
-
-            // 2. Update Vehicle details in Firestore
-            val updateResult = updateVehicleUseCase(updatedVehicle)
+            val result = createVehicleUseCase(vehicle)
             withMain {
-                when (updateResult) {
-                    is Result.Success -> {
-                        _actionState.value = Result.Success(Unit)
-                        fetchVehicles()
-                    }
-                    is Result.Error -> _actionState.value = Result.Error(updateResult.message, updateResult.code, updateResult.throwable)
+                when (result) {
+                    is Result.Success -> _actionState.value = Result.Success(Unit)
+                    is Result.Error -> _actionState.value = Result.Error(result.message, result.code, result.throwable)
                     is Result.Loading -> {}
                 }
             }
@@ -205,10 +147,20 @@ class VehiclesViewModel @Inject constructor(
     }
 
     /**
-     * Update an existing vehicle's details without new image.
+     * Update an existing vehicle's details.
      */
     fun updateVehicle(vehicle: Vehicle) {
-        updateVehicleWithImage(vehicle, null)
+        launchIO {
+            withMain { _actionState.value = Result.Loading() }
+            val result = updateVehicleUseCase(vehicle)
+            withMain {
+                when (result) {
+                    is Result.Success -> _actionState.value = Result.Success(Unit)
+                    is Result.Error -> _actionState.value = Result.Error(result.message, result.code, result.throwable)
+                    is Result.Loading -> {}
+                }
+            }
+        }
     }
 
     /**

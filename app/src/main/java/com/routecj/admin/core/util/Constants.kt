@@ -81,11 +81,5 @@ object Constants {
         const val NOT_FOUND = 404
         const val SERVER_ERROR = 500
     }
-
-    // Payment configuration
-    object Payment {
-        const val DEFAULT_UPI_ID = "chinnujunnu@slc"
-        const val DEFAULT_PAYEE_NAME = "RouteCJ"
-    }
 }
 

@@ -1,0 +1,43 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="200dp"
+    android:height="200dp"
+    android:viewportWidth="800"
+    android:viewportHeight="800">
+  <!-- Pure Black Background -->
+  <path
+      android:fillColor="#000000"
+      android:pathData="M0,0h800v800h-800z"/>
+
+  <!-- Cargo Body -->
+  <path
+      android:fillColor="#0066FF"
+      android:pathData="M88,340h92a8,8 0,0 1,8 8v64a8,8 0,0 1,-8 8h-92a8,8 0,0 1,-8 -8v-64a8,8 0,0 1,8 -8z"/>
+
+  <!-- Cabin -->
+  <path
+      android:fillColor="#0066FF"
+      android:pathData="M193,360h29c13,0 22,12 22,28v32h-51z"/>
+
+  <!-- Window Cutout -->
+  <path
+      android:fillColor="#000000"
+      android:pathData="M198,366h20c8,0 15,8 15,19v7h-35z"/>
+
+  <!-- Rear Wheel Outer -->
+  <path
+      android:fillColor="#0066FF"
+      android:pathData="M118,412a18,18 0,1 0,0.01,0z"/>
+  <!-- Rear Wheel Inner -->
+  <path
+      android:fillColor="#000000"
+      android:pathData="M118,422a8,8 0,1 0,0.01,0z"/>
+
+  <!-- Front Wheel Outer -->
+  <path
+      android:fillColor="#0066FF"
+      android:pathData="M218,412a18,18 0,1 0,0.01,0z"/>
+  <!-- Front Wheel Inner -->
+  <path
+      android:fillColor="#000000"
+      android:pathData="M218,422a8,8 0,1 0,0.01,0z"/>
+</vector>

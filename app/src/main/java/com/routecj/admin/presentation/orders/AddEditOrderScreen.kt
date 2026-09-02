@@ -16,7 +16,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
@@ -25,8 +24,6 @@ import com.routecj.admin.domain.model.Order
 import com.routecj.admin.domain.model.OrderStatus
 import com.routecj.admin.domain.model.Driver
 import com.routecj.admin.domain.model.DriverStatus
-import com.routecj.admin.domain.model.PaymentMethod
-import com.routecj.admin.domain.model.PaymentStatus
 import com.routecj.admin.domain.model.Vehicle
 import com.routecj.admin.domain.model.VehicleStatus
 import java.util.*
@@ -57,13 +54,6 @@ fun AddEditOrderScreen(
     var assignedDriverId by remember { mutableStateOf<String?>(null) }
     var assignedVehicleId by remember { mutableStateOf<String?>(null) }
     var remarks by remember { mutableStateOf("") }
-
-    // Payment Details State (Defaults to PENDING)
-    var paymentStatus by remember { mutableStateOf(PaymentStatus.PENDING) }
-    var paymentMethod by remember { mutableStateOf(PaymentMethod.CASH) }
-    var paymentAmountText by remember { mutableStateOf("") }
-    var transactionId by remember { mutableStateOf("") }
-    var paymentNotes by remember { mutableStateOf("") }
     
     var existingOrder by remember { mutableStateOf<Order?>(null) }
 
@@ -87,12 +77,6 @@ fun AddEditOrderScreen(
                 assignedDriverId = o.assignedDriverId
                 assignedVehicleId = o.assignedVehicleId
                 remarks = o.remarks
-
-                paymentStatus = o.effectivePaymentStatus
-                paymentMethod = o.effectivePaymentMethod
-                paymentAmountText = if (o.paymentAmount > 0.0) o.paymentAmount.toString() else if (o.totalAmount > 0.0) o.totalAmount.toString() else ""
-                transactionId = o.transactionId
-                paymentNotes = o.paymentNotes
             }
         }
     }
@@ -127,22 +111,6 @@ fun AddEditOrderScreen(
                         onClick = {
                             val w = weight.toDoubleOrNull() ?: 0.0
                             val q = quantity.toIntOrNull() ?: 0
-                            val amt = paymentAmountText.toDoubleOrNull() ?: 0.0
-
-                            if (amt < 0.0) {
-                                Toast.makeText(context, "Payment amount cannot be negative", Toast.LENGTH_SHORT).show()
-                                return@Button
-                            }
-
-                            val isElectronic = paymentMethod == PaymentMethod.UPI || paymentMethod == PaymentMethod.CARD || paymentMethod == PaymentMethod.BANK_TRANSFER
-                            val isPaidState = paymentStatus == PaymentStatus.PAID || paymentStatus == PaymentStatus.PARTIALLY_PAID
-                            if (isPaidState && isElectronic && transactionId.isBlank()) {
-                                Toast.makeText(context, "Transaction ID required for ${paymentMethod.name.replace("_", " ")} payment", Toast.LENGTH_SHORT).show()
-                                return@Button
-                            }
-
-                            val paymentDate = existingOrder?.paymentTimestamp ?: (if (isPaidState) Date() else null)
-
                             val order = Order(
                                 id = editOrderId ?: "",
                                 orderNumber = existingOrder?.orderNumber ?: "ORD-${System.currentTimeMillis().toString().takeLast(6)}",
@@ -159,13 +127,6 @@ fun AddEditOrderScreen(
                                 weight = w,
                                 quantity = q,
                                 priority = priority,
-                                paymentStatus = paymentStatus.name,
-                                paymentMethod = paymentMethod.name,
-                                paymentAmount = amt,
-                                transactionId = transactionId.trim(),
-                                paymentTimestamp = paymentDate,
-                                paymentNotes = paymentNotes.trim(),
-                                totalAmount = amt,
                                 assignedDriverId = assignedDriverId,
                                 assignedVehicleId = assignedVehicleId,
                                 remarks = remarks,
@@ -207,123 +168,6 @@ fun AddEditOrderScreen(
                     }
                 }
                 OrderFormField(value = orderType, onValueChange = { orderType = it }, label = "Order Type", icon = Icons.Default.Category)
-            }
-            item {
-                FormSectionTitle("Payment Details")
-                
-                // Status selection
-                Text("Payment Status", style = MaterialTheme.typography.labelMedium, color = Color.Gray, modifier = Modifier.padding(start = 4.dp, bottom = 4.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    listOf(PaymentStatus.PENDING, PaymentStatus.PAID, PaymentStatus.COD).forEach { status ->
-                        val isSelected = paymentStatus == status
-                        FilterChip(
-                            selected = isSelected,
-                            onClick = {
-                                paymentStatus = status
-                                if (status == PaymentStatus.COD) paymentMethod = PaymentMethod.COD
-                                else if (paymentMethod == PaymentMethod.COD) paymentMethod = PaymentMethod.CASH
-                            },
-                            label = { Text(status.name.replace("_", " "), fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium) },
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    listOf(PaymentStatus.PARTIALLY_PAID, PaymentStatus.FAILED, PaymentStatus.REFUNDED).forEach { status ->
-                        val isSelected = paymentStatus == status
-                        FilterChip(
-                            selected = isSelected,
-                            onClick = {
-                                paymentStatus = status
-                                if (status == PaymentStatus.COD) paymentMethod = PaymentMethod.COD
-                                else if (paymentMethod == PaymentMethod.COD) paymentMethod = PaymentMethod.CASH
-                            },
-                            label = { Text(status.name.replace("_", " "), fontSize = 10.sp, fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium) },
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(6.dp))
-
-                // Method selection
-                Text("Payment Method", style = MaterialTheme.typography.labelMedium, color = Color.Gray, modifier = Modifier.padding(start = 4.dp, bottom = 4.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    listOf(PaymentMethod.CASH, PaymentMethod.UPI, PaymentMethod.CARD).forEach { method ->
-                        val isSelected = paymentMethod == method
-                        FilterChip(
-                            selected = isSelected,
-                            onClick = {
-                                paymentMethod = method
-                                if (method == PaymentMethod.COD) paymentStatus = PaymentStatus.COD
-                            },
-                            label = { Text(method.name.replace("_", " "), fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium) },
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    listOf(PaymentMethod.BANK_TRANSFER, PaymentMethod.COD, PaymentMethod.OTHER).forEach { method ->
-                        val isSelected = paymentMethod == method
-                        FilterChip(
-                            selected = isSelected,
-                            onClick = {
-                                paymentMethod = method
-                                if (method == PaymentMethod.COD) paymentStatus = PaymentStatus.COD
-                            },
-                            label = { Text(method.name.replace("_", " "), fontSize = 10.sp, fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium) },
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(6.dp))
-
-                OrderFormField(
-                    value = paymentAmountText,
-                    onValueChange = { input ->
-                        if (input.isEmpty() || input.matches(Regex("""^\d*\.?\d*$"""))) paymentAmountText = input
-                    },
-                    label = "Amount (₹)",
-                    icon = Icons.Default.CurrencyRupee
-                )
-
-                if (paymentMethod == PaymentMethod.UPI) {
-                    Spacer(modifier = Modifier.height(6.dp))
-                    com.routecj.admin.presentation.components.UpiPaymentQrCard(
-                        amount = paymentAmountText.toDoubleOrNull() ?: 0.0,
-                        orderNumber = existingOrder?.orderNumber ?: ""
-                    )
-                }
-
-                val isElectronic = paymentMethod == PaymentMethod.UPI || paymentMethod == PaymentMethod.CARD || paymentMethod == PaymentMethod.BANK_TRANSFER
-                val isPaidState = paymentStatus == PaymentStatus.PAID || paymentStatus == PaymentStatus.PARTIALLY_PAID
-                OrderFormField(
-                    value = transactionId,
-                    onValueChange = { transactionId = it },
-                    label = if (isElectronic && isPaidState) "Transaction / Reference ID *" else "Transaction / Reference ID (Optional)",
-                    icon = Icons.Default.ReceiptLong
-                )
-
-                OrderFormField(
-                    value = paymentNotes,
-                    onValueChange = { paymentNotes = it },
-                    label = "Payment Notes (Optional)",
-                    icon = Icons.Default.Notes,
-                    singleLine = false
-                )
             }
             item {
                 FormSectionTitle("Assignments")

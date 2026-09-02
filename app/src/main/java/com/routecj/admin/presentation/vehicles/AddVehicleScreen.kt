@@ -1,40 +1,70 @@
 package com.routecj.admin.presentation.vehicles
 
-import android.net.Uri
 import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Assignment
+import androidx.compose.material.icons.filled.Badge
+import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.Garage
+import androidx.compose.material.icons.filled.GasMeter
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.LocalShipping
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Numbers
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Scale
+import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.core.content.FileProvider
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
-import coil.compose.AsyncImage
 import com.routecj.admin.core.util.Result
 import com.routecj.admin.domain.model.Vehicle
 import com.routecj.admin.domain.model.VehicleStatus
 import com.routecj.admin.domain.model.VehicleType
-import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -65,41 +95,6 @@ fun AddVehicleScreen(
 
     var existingVehicle by remember { mutableStateOf<Vehicle?>(null) }
 
-    // Image Picker & Dialog States
-    var pendingImageUri by remember { mutableStateOf<Uri?>(null) }
-    var tempCameraUri by remember { mutableStateOf<Uri?>(null) }
-    var showImageSourceDialog by remember { mutableStateOf(false) }
-
-    // Gallery Picker Launcher
-    val galleryLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        if (uri != null) {
-            pendingImageUri = uri
-        }
-    }
-
-    // Camera Launcher
-    val cameraLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.TakePicture()
-    ) { success: Boolean ->
-        if (success && tempCameraUri != null) {
-            pendingImageUri = tempCameraUri
-        }
-    }
-
-    fun launchCamera() {
-        try {
-            val cacheDir = File(context.cacheDir, "images").apply { mkdirs() }
-            val tempFile = File.createTempFile("vehicle_${System.currentTimeMillis()}", ".jpg", cacheDir)
-            val uri = FileProvider.getUriForFile(context, "com.routecj.admin.provider", tempFile)
-            tempCameraUri = uri
-            cameraLauncher.launch(uri)
-        } catch (e: Exception) {
-            Toast.makeText(context, "Unable to launch camera: ${e.message}", Toast.LENGTH_LONG).show()
-        }
-    }
-
     // Load data for edit
     LaunchedEffect(editVehicleId) {
         if (editVehicleId != null) {
@@ -129,18 +124,16 @@ fun AddVehicleScreen(
 
     // Action listener
     val actionState by viewModel.actionState.collectAsStateWithLifecycle()
-    val isSaving = actionState is Result.Loading
-
     LaunchedEffect(actionState) {
         actionState?.let { result ->
             when (result) {
                 is Result.Success -> {
-                    Toast.makeText(context, "Vehicle saved successfully!", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "Vehicle saved successfully", Toast.LENGTH_SHORT).show()
                     viewModel.clearActionState()
                     navController.popBackStack()
                 }
                 is Result.Error -> {
-                    Toast.makeText(context, result.message, Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, "Validation Error: ${result.message}", Toast.LENGTH_LONG).show()
                     viewModel.clearActionState()
                 }
                 is Result.Loading -> {}
@@ -153,7 +146,7 @@ fun AddVehicleScreen(
             TopAppBar(
                 title = { Text(if (editVehicleId == null) "Add New Vehicle" else "Edit Vehicle", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }, enabled = !isSaving) {
+                    IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
@@ -175,7 +168,6 @@ fun AddVehicleScreen(
                     OutlinedButton(
                         onClick = { navController.popBackStack() },
                         modifier = Modifier.weight(1f),
-                        enabled = !isSaving,
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Text("Cancel")
@@ -189,7 +181,7 @@ fun AddVehicleScreen(
                             val expiryDate = try {
                                 SimpleDateFormat("dd/MM/yyyy", Locale.ROOT).parse(insuranceExpiryStr) ?: Date()
                             } catch (_: Exception) {
-                                Date(System.currentTimeMillis() - 86400000)
+                                Date(System.currentTimeMillis() - 86400000) // Trigger expired validation if unparseable
                             }
 
                             val targetVehicle = Vehicle(
@@ -202,7 +194,7 @@ fun AddVehicleScreen(
                                 driverId = if (driverId.isBlank()) null else driverId,
                                 driverName = driverName,
                                 capacity = capDouble,
-                                imageUrl = existingVehicle?.imageUrl,
+                                imageUrl = existingVehicle?.imageUrl, // Preserve existing image URL during edit
                                 fuelLevel = fuelDouble,
                                 status = status,
                                 lastServiceDate = existingVehicle?.lastServiceDate ?: Date(),
@@ -217,25 +209,15 @@ fun AddVehicleScreen(
                             )
 
                             if (editVehicleId == null) {
-                                viewModel.createVehicleWithImage(targetVehicle, pendingImageUri)
+                                viewModel.createVehicle(targetVehicle)
                             } else {
-                                viewModel.updateVehicleWithImage(targetVehicle, pendingImageUri)
+                                viewModel.updateVehicle(targetVehicle)
                             }
                         },
                         modifier = Modifier.weight(1f),
-                        enabled = !isSaving,
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00C7C7))
+                        shape = RoundedCornerShape(12.dp)
                     ) {
-                        if (isSaving) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(20.dp),
-                                color = Color.Black,
-                                strokeWidth = 2.dp
-                            )
-                        } else {
-                            Text("Save Vehicle", color = Color.Black, fontWeight = FontWeight.Bold)
-                        }
+                        Text("Save Vehicle")
                     }
                 }
             }
@@ -250,75 +232,6 @@ fun AddVehicleScreen(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Vehicle Photo Picker Section
-                item {
-                    FormSectionTitle("Vehicle Photo")
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(190.dp)
-                            .shadow(4.dp, RoundedCornerShape(16.dp))
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(Color(0xFF0F172A))
-                            .clickable(enabled = !isSaving) { showImageSourceDialog = true },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        val displayUri = pendingImageUri ?: existingVehicle?.imageUrl?.ifBlank { null }
-                        if (displayUri != null) {
-                            AsyncImage(
-                                model = displayUri,
-                                contentDescription = "Vehicle Photo",
-                                modifier = Modifier.fillMaxSize(),
-                                contentScale = ContentScale.Crop
-                            )
-                            Surface(
-                                modifier = Modifier
-                                    .align(Alignment.BottomEnd)
-                                    .padding(12.dp),
-                                shape = RoundedCornerShape(8.dp),
-                                color = Color.Black.copy(alpha = 0.75f)
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    Icon(Icons.Default.PhotoCamera, contentDescription = null, tint = Color(0xFF00C7C7), modifier = Modifier.size(16.dp))
-                                    Text(
-                                        text = if (pendingImageUri != null) "Change Selected Photo" else "Replace Photo",
-                                        color = Color.White,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
-                        } else {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.AddAPhoto,
-                                    contentDescription = null,
-                                    tint = Color(0xFF00C7C7),
-                                    modifier = Modifier.size(38.dp)
-                                )
-                                Text(
-                                    text = "Tap to select vehicle photo",
-                                    color = Color.White,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = "JPEG, PNG, WEBP (Max 10MB)",
-                                    color = Color.Gray,
-                                    fontSize = 11.sp
-                                )
-                            }
-                        }
-                    }
-                }
-
                 item {
                     FormSectionTitle("General Information")
                     FormField(value = vehicleNumber, onValueChange = { vehicleNumber = it }, label = "Vehicle Number", icon = Icons.Default.Numbers)
@@ -417,59 +330,17 @@ fun AddVehicleScreen(
                 item { Spacer(modifier = Modifier.height(16.dp)) }
             }
 
-            if (isSaving) {
+            if (actionState is Result.Loading) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
-                    color = Color.Black.copy(alpha = 0.5f)
+                    color = Color.Black.copy(alpha = 0.3f)
                 ) {
-                    Column(
-                        modifier = Modifier.fillMaxSize(),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        CircularProgressIndicator(color = Color(0xFF00C7C7))
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = if (pendingImageUri != null) "Uploading Photo & Saving Vehicle..." else "Saving Vehicle...",
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp
-                        )
+                    Box(contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                     }
                 }
             }
         }
-    }
-
-    // Photo Source Dialog
-    if (showImageSourceDialog) {
-        AlertDialog(
-            onDismissRequest = { showImageSourceDialog = false },
-            title = { Text("Select Photo Source", fontWeight = FontWeight.Bold) },
-            text = { Text("Choose how you want to add the vehicle image.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    showImageSourceDialog = false
-                    galleryLauncher.launch("image/*")
-                }) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Icon(Icons.Default.PhotoLibrary, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Text("Gallery", fontWeight = FontWeight.Bold)
-                    }
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = {
-                    showImageSourceDialog = false
-                    launchCamera()
-                }) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Icon(Icons.Default.PhotoCamera, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Text("Camera", fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-        )
     }
 }
 

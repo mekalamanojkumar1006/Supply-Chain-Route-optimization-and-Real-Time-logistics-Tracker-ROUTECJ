@@ -2,6 +2,7 @@ package com.routecj.admin.data.repository
 
 import android.util.Log
 import com.google.firebase.firestore.FirebaseFirestore
+import com.routecj.admin.core.util.OrderAddressMapper
 import com.routecj.admin.core.util.Result
 import com.routecj.admin.domain.model.*
 import com.routecj.admin.domain.repository.DispatchRepository
@@ -140,6 +141,15 @@ class FirestoreDispatchRepository @Inject constructor(
             val vehicleReg = vehicleDoc.getString("registrationNumber") ?: vehicleDoc.getString("vehicleNumber") ?: "Unknown"
             val vehicleType = vehicleDoc.getString("vehicleType") ?: "VAN"
 
+            val orderDocData = orderDoc.data ?: emptyMap()
+            val (docPickupAddr, docPickupPin, originLoc) = OrderAddressMapper.extractPickupInfo(orderDocData)
+            val (docDelivAddr, docDelivPin, destLoc) = OrderAddressMapper.extractDeliveryInfo(orderDocData)
+
+            val pickupAddr = order.pickupAddress.ifBlank { order.pickupLocation.ifBlank { docPickupAddr } }
+            val pickupPin = order.pickupPincode.ifBlank { docPickupPin.ifBlank { OrderAddressMapper.extractPincodeFromText(pickupAddr) } }
+            val delivAddr = order.deliveryAddress.ifBlank { order.deliveryLocation.ifBlank { order.customerAddress.ifBlank { docDelivAddr } } }
+            val delivPin = order.deliveryPincode.ifBlank { docDelivPin.ifBlank { OrderAddressMapper.extractPincodeFromText(delivAddr) } }
+
             // 1. Create Dispatch
             val dispatchId = dispatchesCollection.document().id
             val dispatch = Dispatch(
@@ -147,8 +157,12 @@ class FirestoreDispatchRepository @Inject constructor(
                 orderId = order.id,
                 orderNumber = order.orderNumber,
                 customerName = order.customerName,
-                pickupLocation = order.pickupAddress.ifBlank { order.pickupLocation },
-                deliveryLocation = order.deliveryAddress.ifBlank { order.deliveryLocation },
+                pickupLocation = pickupAddr,
+                deliveryLocation = delivAddr,
+                pickupAddress = pickupAddr,
+                pickupPincode = pickupPin,
+                deliveryAddress = delivAddr,
+                deliveryPincode = delivPin,
                 driverId = driverId,
                 driverName = driverName,
                 vehicleId = vehicleId,
@@ -158,7 +172,7 @@ class FirestoreDispatchRepository @Inject constructor(
             )
             transaction.set(dispatchesCollection.document(dispatchId), dispatchToMap(dispatch))
 
-            // 2. Update Order
+            // 2. Update Order with canonical address fields
             transaction.update(orderRef, 
                 "status", OrderStatus.DISPATCHED.name,
                 "assignedDriverId", driverId,
@@ -169,6 +183,34 @@ class FirestoreDispatchRepository @Inject constructor(
                 "vehicleId", vehicleId,
                 "vehicleRegistration", vehicleReg,
                 "vehicleType", vehicleType,
+                "pickupAddress", pickupAddr,
+                "pickup_address", pickupAddr,
+                "pickupLocation", pickupAddr,
+                "pickupPincode", pickupPin,
+                "pickup_pincode", pickupPin,
+                "deliveryAddress", delivAddr,
+                "delivery_address", delivAddr,
+                "deliveryLocation", delivAddr,
+                "deliveryPincode", delivPin,
+                "delivery_pincode", delivPin,
+                "destinationAddress", delivAddr,
+                "destinationPincode", delivPin,
+                "destination", mapOf(
+                    "latitude" to destLoc.latitude,
+                    "longitude" to destLoc.longitude,
+                    "address" to delivAddr,
+                    "city" to destLoc.city,
+                    "state" to destLoc.state,
+                    "pincode" to delivPin
+                ),
+                "origin", mapOf(
+                    "latitude" to originLoc.latitude,
+                    "longitude" to originLoc.longitude,
+                    "address" to pickupAddr,
+                    "city" to originLoc.city,
+                    "state" to originLoc.state,
+                    "pincode" to pickupPin
+                ),
                 "updatedAt", Date()
             )
 
@@ -183,13 +225,20 @@ class FirestoreDispatchRepository @Inject constructor(
 
     private fun docToDispatch(id: String, data: Map<String, Any>?): Dispatch? {
         if (data == null) return null
+        val (pickupAddr, pickupPin, _) = OrderAddressMapper.extractPickupInfo(data)
+        val (delivAddr, delivPin, _) = OrderAddressMapper.extractDeliveryInfo(data)
+
         return Dispatch(
             id = id,
             orderId = data["orderId"] as? String ?: "",
             orderNumber = data["orderNumber"] as? String ?: "",
             customerName = data["customerName"] as? String ?: "",
-            pickupLocation = data["pickupLocation"] as? String ?: "",
-            deliveryLocation = data["deliveryLocation"] as? String ?: "",
+            pickupLocation = pickupAddr,
+            deliveryLocation = delivAddr,
+            pickupAddress = pickupAddr,
+            pickupPincode = pickupPin,
+            deliveryAddress = delivAddr,
+            deliveryPincode = delivPin,
             driverId = data["driverId"] as? String,
             driverName = data["driverName"] as? String,
             vehicleId = data["vehicleId"] as? String,
@@ -204,12 +253,38 @@ class FirestoreDispatchRepository @Inject constructor(
     }
 
     private fun dispatchToMap(dispatch: Dispatch): Map<String, Any?> {
+        val pickupAddr = dispatch.pickupAddress.ifBlank { dispatch.pickupLocation }
+        val pickupPin = dispatch.pickupPincode.ifBlank { OrderAddressMapper.extractPincodeFromText(pickupAddr) }
+        val delivAddr = dispatch.deliveryAddress.ifBlank { dispatch.deliveryLocation }
+        val delivPin = dispatch.deliveryPincode.ifBlank { OrderAddressMapper.extractPincodeFromText(delivAddr) }
+
         return mapOf(
             "orderId" to dispatch.orderId,
             "orderNumber" to dispatch.orderNumber,
             "customerName" to dispatch.customerName,
-            "pickupLocation" to dispatch.pickupLocation,
-            "deliveryLocation" to dispatch.deliveryLocation,
+            "pickupLocation" to pickupAddr,
+            "deliveryLocation" to delivAddr,
+            "pickupAddress" to pickupAddr,
+            "pickup_address" to pickupAddr,
+            "pickupPincode" to pickupPin,
+            "pickup_pincode" to pickupPin,
+            "deliveryAddress" to delivAddr,
+            "delivery_address" to delivAddr,
+            "deliveryPincode" to delivPin,
+            "delivery_pincode" to delivPin,
+            "destinationAddress" to delivAddr,
+            "destinationPincode" to delivPin,
+            "destinationLocation" to delivAddr,
+            "dropAddress" to delivAddr,
+            "dropLocation" to delivAddr,
+            "destination" to mapOf(
+                "address" to delivAddr,
+                "pincode" to delivPin
+            ),
+            "origin" to mapOf(
+                "address" to pickupAddr,
+                "pincode" to pickupPin
+            ),
             "driverId" to dispatch.driverId,
             "driverName" to dispatch.driverName,
             "vehicleId" to dispatch.vehicleId,

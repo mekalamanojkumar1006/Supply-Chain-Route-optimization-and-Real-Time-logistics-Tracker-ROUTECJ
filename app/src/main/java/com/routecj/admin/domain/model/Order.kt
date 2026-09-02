@@ -32,12 +32,7 @@ data class Order(
     val weight: Double = 0.0,
     val quantity: Int = 0,
     val priority: String = "Medium",
-    val paymentStatus: String = "PENDING",
-    val paymentMethod: String = "CASH",
-    val paymentAmount: Double = 0.0,
-    val transactionId: String = "",
-    val paymentTimestamp: Date? = null,
-    val paymentNotes: String = "",
+    val paymentStatus: String = "Pending",
     val status: OrderStatus = OrderStatus.PENDING,
     val assignedDriverId: String? = null,
     val assignedVehicleId: String? = null,
@@ -93,51 +88,7 @@ data class Order(
     val deliveredByUid: String = "",
     val deliveryOtp: String = "",
     val deliveryRemarks: String = ""
-) {
-    val effectivePaymentStatus: PaymentStatus
-        get() = PaymentStatus.fromString(paymentStatus)
-
-    val effectivePaymentMethod: PaymentMethod
-        get() = PaymentMethod.fromString(paymentMethod)
-}
-
-/**
- * Payment Status enum.
- */
-enum class PaymentStatus {
-    PENDING,
-    PAID,
-    PARTIALLY_PAID,
-    COD,
-    FAILED,
-    REFUNDED;
-
-    companion object {
-        fun fromString(value: String): PaymentStatus {
-            val normalized = value.trim().replace(" ", "_").uppercase()
-            return entries.find { it.name == normalized } ?: PENDING
-        }
-    }
-}
-
-/**
- * Payment Method enum.
- */
-enum class PaymentMethod {
-    CASH,
-    UPI,
-    CARD,
-    BANK_TRANSFER,
-    COD,
-    OTHER;
-
-    companion object {
-        fun fromString(value: String): PaymentMethod {
-            val normalized = value.trim().replace(" ", "_").uppercase()
-            return entries.find { it.name == normalized } ?: CASH
-        }
-    }
-}
+)
 
 /**
  * Order Status enum.
@@ -180,5 +131,4 @@ data class Location(
     val state: String,
     val pincode: String
 )
-
 

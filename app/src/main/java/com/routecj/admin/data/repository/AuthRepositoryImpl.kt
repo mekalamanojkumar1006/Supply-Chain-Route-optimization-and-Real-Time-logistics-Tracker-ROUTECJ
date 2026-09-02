@@ -53,24 +53,6 @@ class AuthRepositoryImpl @Inject constructor(
                     logout()
                     return Result.Error("Your RouteCJ account is currently inactive. Contact an administrator.")
                 }
-
-                // 3. Update Last Login Server Timestamp in Firestore (Non-blocking / Non-fatal)
-                try {
-                    val timestampUpdates = mapOf<String, Any>(
-                        "lastLogin" to com.google.firebase.firestore.FieldValue.serverTimestamp(),
-                        "updatedAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
-                    )
-                    firestore.collection("admins").document(firebaseUser.uid).update(timestampUpdates).await()
-                    if (admin.adminId.isNotBlank() && admin.adminId != firebaseUser.uid) {
-                        try {
-                            firestore.collection("admins").document(admin.adminId).update(timestampUpdates).await()
-                        } catch (_: Exception) {}
-                    }
-                    Timber.tag("AUTH_FIRESTORE").d("Updated lastLogin server timestamp for ${admin.adminId} (${firebaseUser.uid})")
-                } catch (e: Exception) {
-                    Timber.tag("AUTH_FIRESTORE").w(e, "Non-fatal: Failed to update lastLogin timestamp in Firestore")
-                }
-
                 sessionManager.updateAdmin(admin)
             }
             result

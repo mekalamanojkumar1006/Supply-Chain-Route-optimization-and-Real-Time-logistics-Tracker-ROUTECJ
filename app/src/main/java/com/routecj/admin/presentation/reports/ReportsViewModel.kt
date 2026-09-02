@@ -92,7 +92,8 @@ class ReportsViewModel @Inject constructor(
                 avgDeliveryTimeHours = avgDeliveryTimeHours,
                 ordersByDay = byDay,
                 statusBreakdown = statusBreakdown,
-                ordersByPriority = filtered.groupBy { it.priority }.mapValues { it.value.size }
+                ordersByPriority = filtered.groupBy { it.priority }.mapValues { it.value.size },
+                ordersList = filtered
             ))
         } else Result.Loading()
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), Result.Loading())
@@ -309,29 +310,57 @@ class ReportsViewModel @Inject constructor(
     fun exportOrdersToCSV(): String {
         val state = ordersReport.value
         if (state !is Result.Success) return ""
+        val data = state.data
         
         val sb = StringBuilder()
         sb.append("RouteCJ Logistics Operational Intelligence Report\n")
         sb.append("Generated Period,${selectedPeriod.value.name}\n\n")
         sb.append("METRIC,COUNT\n")
-        sb.append("Total Orders,${state.data.total}\n")
-        sb.append("Delivered,${state.data.delivered}\n")
-        sb.append("In Transit,${state.data.inTransit}\n")
-        sb.append("Dispatched,${state.data.dispatched}\n")
-        sb.append("Ready for Dispatch,${state.data.readyForDispatch}\n")
-        sb.append("Pending Review,${state.data.pendingGodownReview}\n")
-        sb.append("Assigned,${state.data.assigned}\n")
-        sb.append("Pending,${state.data.pending}\n")
-        sb.append("Cancelled,${state.data.cancelled}\n")
-        sb.append("Failed,${state.data.failed}\n\n")
+        sb.append("Total Orders,${data.total}\n")
+        sb.append("Delivered,${data.delivered}\n")
+        sb.append("In Transit,${data.inTransit}\n")
+        sb.append("Dispatched,${data.dispatched}\n")
+        sb.append("Ready for Dispatch,${data.readyForDispatch}\n")
+        sb.append("Pending Review,${data.pendingGodownReview}\n")
+        sb.append("Assigned,${data.assigned}\n")
+        sb.append("Pending,${data.pending}\n")
+        sb.append("Cancelled,${data.cancelled}\n")
+        sb.append("Failed,${data.failed}\n\n")
         
         sb.append("Daily Volume Trend\n")
         sb.append("Date,Order Volume\n")
-        state.data.ordersByDay.forEach { (date, count) ->
+        data.ordersByDay.forEach { (date, count) ->
             sb.append("$date,$count\n")
+        }
+        sb.append("\n")
+
+        sb.append("Detailed Order Records\n")
+        sb.append("Order Number,Customer Name,Customer Phone,Pickup Address,Pickup PIN,Delivery Address,Delivery PIN,Weight (kg),Quantity,Status,Payment Status,Total Amount (INR),Created At\n")
+
+        val df = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+        data.ordersList.forEach { order ->
+            val num = escapeCsv(order.orderNumber)
+            val name = escapeCsv(order.customerName.ifBlank { "Customer" })
+            val phone = escapeCsv(order.customerPhone)
+            val pickup = escapeCsv(order.pickupAddress.ifBlank { order.pickupLocation })
+            val pickupPin = escapeCsv(order.pickupPincode)
+            val deliv = escapeCsv(order.deliveryAddress.ifBlank { order.deliveryLocation.ifBlank { order.customerAddress } })
+            val delivPin = escapeCsv(order.deliveryPincode)
+            val status = escapeCsv(order.status.name)
+            val payStatus = escapeCsv(order.paymentStatus)
+            val dateStr = escapeCsv(df.format(order.createdAt))
+
+            sb.append("$num,$name,$phone,$pickup,$pickupPin,$deliv,$delivPin,${order.weight},${order.quantity},$status,$payStatus,${order.totalAmount},$dateStr\n")
         }
         
         return sb.toString()
+    }
+
+    private fun escapeCsv(value: String): String {
+        if (value.contains(",") || value.contains("\"") || value.contains("\n")) {
+            return "\"${value.replace("\"", "\"\"")}\""
+        }
+        return value
     }
 
     private fun <T> filterByDate(

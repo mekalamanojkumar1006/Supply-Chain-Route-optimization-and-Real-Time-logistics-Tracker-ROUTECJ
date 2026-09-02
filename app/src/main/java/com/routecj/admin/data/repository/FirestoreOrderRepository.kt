@@ -58,31 +58,62 @@ class FirestoreOrderRepository @Inject constructor(
         return try {
             val doc = collection.document(orderId).get().await()
             if (doc.exists()) {
-                Result.Success(docToOrder(doc.id, doc.data))
+                val rawOrder = docToOrder(doc.id, doc.data)
+                val resolved = resolveCustomerProfileForOrder(rawOrder)
+                Result.Success(resolved)
             } else {
                 // Try searching by verificationToken, parcelId, or orderNumber
                 val tokenQuery = collection.whereEqualTo("verificationToken", orderId).limit(1).get().await()
                 if (!tokenQuery.isEmpty) {
                     val matchDoc = tokenQuery.documents.first()
-                    return Result.Success(docToOrder(matchDoc.id, matchDoc.data))
+                    return Result.Success(resolveCustomerProfileForOrder(docToOrder(matchDoc.id, matchDoc.data)))
                 }
                 
                 val parcelIdQuery = collection.whereEqualTo("parcelId", orderId).limit(1).get().await()
                 if (!parcelIdQuery.isEmpty) {
                     val matchDoc = parcelIdQuery.documents.first()
-                    return Result.Success(docToOrder(matchDoc.id, matchDoc.data))
+                    return Result.Success(resolveCustomerProfileForOrder(docToOrder(matchDoc.id, matchDoc.data)))
                 }
 
                 val orderNumQuery = collection.whereEqualTo("orderNumber", orderId).limit(1).get().await()
                 if (!orderNumQuery.isEmpty) {
                     val matchDoc = orderNumQuery.documents.first()
-                    return Result.Success(docToOrder(matchDoc.id, matchDoc.data))
+                    return Result.Success(resolveCustomerProfileForOrder(docToOrder(matchDoc.id, matchDoc.data)))
                 }
 
                 Result.Error("Order/Parcel not found for ID: $orderId")
             }
         } catch (e: Exception) {
             Result.Error("Error fetching order: ${e.message}", throwable = e)
+        }
+    }
+
+    private suspend fun resolveCustomerProfileForOrder(order: Order): Order {
+        if (order.customerId.isBlank() || (order.customerName.isNotBlank() && order.customerPhone.isNotBlank())) {
+            return order
+        }
+        return try {
+            val custDoc = firestore.collection("customers").document(order.customerId).get().await()
+            if (custDoc.exists()) {
+                val fetchedName = custDoc.getString("name") ?: custDoc.getString("customerName") ?: ""
+                val fetchedPhone = custDoc.getString("phone") ?: custDoc.getString("phoneNumber") ?: ""
+                order.copy(
+                    customerName = if (order.customerName.isBlank()) fetchedName else order.customerName,
+                    customerPhone = if (order.customerPhone.isBlank()) fetchedPhone else order.customerPhone
+                )
+            } else {
+                val userDoc = firestore.collection("users").document(order.customerId).get().await()
+                if (userDoc.exists()) {
+                    val fetchedName = userDoc.getString("name") ?: userDoc.getString("displayName") ?: ""
+                    val fetchedPhone = userDoc.getString("phone") ?: userDoc.getString("phoneNumber") ?: ""
+                    order.copy(
+                        customerName = if (order.customerName.isBlank()) fetchedName else order.customerName,
+                        customerPhone = if (order.customerPhone.isBlank()) fetchedPhone else order.customerPhone
+                    )
+                } else order
+            }
+        } catch (_: Exception) {
+            order
         }
     }
 
@@ -139,8 +170,34 @@ class FirestoreOrderRepository @Inject constructor(
         val (canonicalDeliveryAddress, canonicalDeliveryPincode, destLoc) = OrderAddressMapper.extractDeliveryInfo(map)
 
         val orderNumber = map["orderNumber"] as? String ?: "#${id.take(6)}"
-        val customerName = map["customerName"] as? String ?: ""
-        val customerPhone = map["customerPhone"] as? String ?: ""
+
+        val customerName = listOfNotNull(
+            map["customerName"] as? String,
+            map["customer_name"] as? String,
+            map["customer"] as? String,
+            (map["customer"] as? Map<*, *>)?.get("name") as? String,
+            map["pickupContactName"] as? String,
+            map["receiverName"] as? String
+        ).map { it.trim() }.firstOrNull { it.isNotBlank() } ?: ""
+
+        val customerPhone = listOfNotNull(
+            map["customerPhone"] as? String,
+            map["customer_phone"] as? String,
+            (map["customer"] as? Map<*, *>)?.get("phone") as? String,
+            (map["customer"] as? Map<*, *>)?.get("phoneNumber") as? String,
+            map["pickupContactPhone"] as? String,
+            map["receiverPhone"] as? String
+        ).map { it.trim() }.firstOrNull { it.isNotBlank() } ?: ""
+
+        val customerId = listOfNotNull(
+            map["customerId"] as? String,
+            map["customer_id"] as? String,
+            map["customerUid"] as? String,
+            map["customer_uid"] as? String,
+            map["createdByUid"] as? String,
+            map["userId"] as? String
+        ).map { it.trim() }.firstOrNull { it.isNotBlank() } ?: ""
+
         val customerAddress = (map["customerAddress"] as? String)?.ifBlank { null } ?: canonicalDeliveryAddress
         val pickupLocation = canonicalPickupAddress
         val deliveryLocation = canonicalDeliveryAddress
@@ -214,7 +271,7 @@ class FirestoreOrderRepository @Inject constructor(
             updatedAt = updatedAt,
             
             // Internal compatibility
-            customerId = map["customerId"] as? String ?: "",
+            customerId = customerId,
             driverId = (map["driverId"] as? String) ?: assignedDriverId,
             driverName = map["driverName"] as? String,
             driverPhone = map["driverPhone"] as? String,

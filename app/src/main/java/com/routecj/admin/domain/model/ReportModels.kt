@@ -33,7 +33,8 @@ data class OrdersReport(
     val avgDeliveryTimeHours: Double = 0.0,
     val ordersByDay: List<Pair<String, Int>> = emptyList(),
     val statusBreakdown: List<Pair<OrderStatus, Int>> = emptyList(),
-    val ordersByPriority: Map<String, Int> = emptyMap()
+    val ordersByPriority: Map<String, Int> = emptyMap(),
+    val ordersList: List<Order> = emptyList()
 )
 
 /**

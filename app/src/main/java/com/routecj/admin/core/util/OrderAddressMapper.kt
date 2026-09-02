@@ -176,14 +176,16 @@ object OrderAddressMapper {
         val resolvedAddress = addressCandidates.firstOrNull() ?: ""
 
         val pinCandidates = listOfNotNull(
-            map["deliveryPincode"] as? String,
-            map["delivery_pincode"] as? String,
-            map["deliveryPin"] as? String,
-            map["delivery_pin"] as? String,
+            map["destinationPinCode"] as? String,
             map["destinationPincode"] as? String,
             map["destination_pincode"] as? String,
             map["destinationPin"] as? String,
             map["destination_pin"] as? String,
+            map["deliveryPinCode"] as? String,
+            map["deliveryPincode"] as? String,
+            map["delivery_pincode"] as? String,
+            map["deliveryPin"] as? String,
+            map["delivery_pin"] as? String,
             map["dropPincode"] as? String,
             map["drop_pincode"] as? String,
             map["dropPin"] as? String,

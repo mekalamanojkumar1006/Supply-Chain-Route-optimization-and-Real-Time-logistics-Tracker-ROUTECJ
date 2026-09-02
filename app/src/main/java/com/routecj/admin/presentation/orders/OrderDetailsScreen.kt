@@ -315,10 +315,10 @@ fun OrderInfoSection(order: Order) {
             DetailRow(Icons.Default.Person, "Customer", order.customerName)
             DetailRow(Icons.Default.Phone, "Customer Phone", order.customerPhone)
 
-            val pickupAddr = order.pickupAddress.ifBlank { order.pickupLocation.ifBlank { "Pickup Address not available" } }
-            val pickupPin = order.pickupPincode.ifBlank { OrderAddressMapper.extractPincodeFromText(pickupAddr).ifBlank { "PIN not available" } }
-            val deliveryAddr = order.deliveryAddress.ifBlank { order.deliveryLocation.ifBlank { order.customerAddress.ifBlank { "Delivery Address not available" } } }
-            val deliveryPin = order.deliveryPincode.ifBlank { OrderAddressMapper.extractPincodeFromText(deliveryAddr).ifBlank { "PIN not available" } }
+            val pickupAddr = order.pickupAddress.ifBlank { order.pickupLocation.ifBlank { order.origin.address.ifBlank { "Pickup Address not available" } } }
+            val pickupPin = order.pickupPincode.ifBlank { order.origin.pincode.ifBlank { OrderAddressMapper.extractPincodeFromText(pickupAddr).ifBlank { "PIN not available" } } }
+            val deliveryAddr = order.deliveryAddress.ifBlank { order.deliveryLocation.ifBlank { order.destination.address.ifBlank { order.customerAddress.ifBlank { "Delivery Address not available" } } } }
+            val deliveryPin = order.deliveryPincode.ifBlank { order.destination.pincode.ifBlank { OrderAddressMapper.extractPincodeFromText(deliveryAddr).ifBlank { "PIN not available" } } }
 
             DetailRow(Icons.Default.TripOrigin, "Pickup Address", pickupAddr)
             DetailRow(Icons.Default.PinDrop, "Pickup PIN Code", pickupPin)

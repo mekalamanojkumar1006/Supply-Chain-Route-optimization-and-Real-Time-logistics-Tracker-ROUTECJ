@@ -126,34 +126,24 @@ object NavigationTargetResolver {
 
         return if (!pickupDone) {
             val valid = isValidCoordinate(trip.originLat, trip.originLng)
-            val accuracy = if (valid) trip.pickupLocationAccuracy else LocationAccuracy.UNAVAILABLE
+            val accuracy = if (valid) LocationAccuracy.EXACT else LocationAccuracy.UNAVAILABLE
             NavigationTarget(
                 type = NavigationTargetType.CUSTOMER_PICKUP,
                 point = if (valid) GeoPoint(trip.originLat, trip.originLng) else null,
                 label = "CUSTOMER PICKUP",
                 address = trip.pickupAddress,
-                pincode = trip.pickupPincode,
-                city = trip.pickupCity,
-                area = trip.pickupArea,
-                street = trip.pickupStreet,
-                landmark = trip.pickupLandmark,
                 hasValidCoordinates = valid,
                 accuracy = accuracy,
                 accuracyBadgeText = getAccuracyBadgeText(accuracy)
             )
         } else {
             val valid = isValidCoordinate(trip.destinationLat, trip.destinationLng)
-            val accuracy = if (valid) trip.deliveryLocationAccuracy else LocationAccuracy.UNAVAILABLE
+            val accuracy = if (valid) LocationAccuracy.EXACT else LocationAccuracy.UNAVAILABLE
             NavigationTarget(
                 type = NavigationTargetType.CUSTOMER_DELIVERY,
                 point = if (valid) GeoPoint(trip.destinationLat, trip.destinationLng) else null,
                 label = "CUSTOMER DELIVERY",
                 address = trip.deliveryAddress,
-                pincode = trip.deliveryPincode,
-                city = trip.deliveryCity,
-                area = trip.deliveryArea,
-                street = trip.deliveryStreet,
-                landmark = trip.deliveryLandmark,
                 hasValidCoordinates = valid,
                 accuracy = accuracy,
                 accuracyBadgeText = getAccuracyBadgeText(accuracy)

@@ -4,7 +4,6 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -25,6 +24,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.routecj.driver.presentation.components.LogoVariant
+import com.routecj.driver.presentation.components.RouteCJLogo
 import com.routecj.driver.ui.theme.RouteCJCyan
 import com.routecj.driver.ui.theme.RouteCJNavyDark
 import com.routecj.driver.ui.theme.RouteCJTextSecondaryDark
@@ -62,7 +63,6 @@ fun SplashScreen(
     val brandAlpha = remember { Animatable(0f) }
     val brandOffsetY = remember { Animatable(25f) }
     val brandScale = remember { Animatable(0.95f) }
-    val glowPulse = remember { Animatable(0.5f) }
 
     // Road motion
     val roadAnim = rememberInfiniteTransition(label = "roadTransition")
@@ -126,18 +126,9 @@ fun SplashScreen(
         launch { brandAlpha.animateTo(1f, tween(600, easing = LinearOutSlowInEasing)) }
         launch { brandOffsetY.animateTo(0f, tween(600, easing = FastOutSlowInEasing)) }
         launch { brandScale.animateTo(1f, tween(600, easing = FastOutSlowInEasing)) }
-        launch {
-            glowPulse.animateTo(
-                1f,
-                infiniteRepeatable(
-                    animation = tween(900, easing = FastOutSlowInEasing),
-                    repeatMode = RepeatMode.Reverse
-                )
-            )
-        }
 
-        // Complete animation and navigate
-        delay(800.milliseconds)
+        // Complete full animation cycle before finishing
+        delay(1200.milliseconds)
         onAnimationFinished()
     }
 
@@ -190,7 +181,7 @@ fun SplashScreen(
             )
         }
 
-        // Original Animated RouteCJ Brand Reveal Section
+        // Animated Master RouteCJ Logo & Slogan Reveal
         Column(
             modifier = Modifier
                 .align(Alignment.Center)
@@ -199,36 +190,10 @@ fun SplashScreen(
                 .scale(brandScale.value),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
-            ) {
-                Text(
-                    text = "Route",
-                    fontSize = 32.sp,
-                    fontWeight = FontWeight.Black,
-                    fontFamily = FontFamily.SansSerif,
-                    color = Color.White,
-                    letterSpacing = 0.5.sp
-                )
-                Text(
-                    text = "CJ",
-                    fontSize = 32.sp,
-                    fontWeight = FontWeight.Black,
-                    fontFamily = FontFamily.SansSerif,
-                    color = RouteCJCyan,
-                    letterSpacing = 0.5.sp
-                )
-                Box(
-                    modifier = Modifier
-                        .padding(start = 4.dp, top = 6.dp)
-                        .size(8.dp)
-                        .background(
-                            color = RouteCJCyan.copy(alpha = glowPulse.value),
-                            shape = CircleShape
-                        )
-                )
-            }
+            RouteCJLogo(
+                variant = LogoVariant.DARK_BG,
+                height = 70.dp
+            )
 
             Text(
                 text = "LOGISTICS INTELLIGENCE & DRIVER",
@@ -237,7 +202,7 @@ fun SplashScreen(
                 fontFamily = FontFamily.SansSerif,
                 color = RouteCJTextSecondaryDark,
                 letterSpacing = 2.sp,
-                modifier = Modifier.padding(top = 4.dp)
+                modifier = Modifier.padding(top = 8.dp)
             )
         }
     }

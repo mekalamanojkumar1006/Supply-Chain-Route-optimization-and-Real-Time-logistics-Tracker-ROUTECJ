@@ -38,9 +38,9 @@ fun RouteCJLogo(
     showSlogan: Boolean = false
 ) {
     val logoDrawableRes = when (variant) {
-        LogoVariant.DARK_BG, LogoVariant.TRANSPARENT_WHITE -> if (variant == LogoVariant.ICON_ONLY) R.drawable.ic_routecj_symbol else R.drawable.ic_routecj_logo_dark
-        LogoVariant.LIGHT_BG, LogoVariant.TRANSPARENT_NAVY -> if (variant == LogoVariant.ICON_ONLY) R.drawable.ic_routecj_symbol else R.drawable.ic_routecj_logo_light
         LogoVariant.ICON_ONLY -> R.drawable.ic_routecj_symbol
+        LogoVariant.LIGHT_BG, LogoVariant.TRANSPARENT_NAVY -> R.drawable.ic_routecj_logo_light
+        else -> R.drawable.ic_routecj_logo_dark
     }
 
     Icon(

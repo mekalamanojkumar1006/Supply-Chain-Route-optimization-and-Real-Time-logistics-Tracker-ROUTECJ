@@ -56,12 +56,6 @@ fun DriverAppNavHost(
     val navController = rememberNavController()
     val uiState by authViewModel.uiState.collectAsState()
 
-    LaunchedEffect(uiState, initialNotificationRoute) {
-        if (uiState is AuthUiState.Authenticated && initialNotificationRoute != null) {
-            navController.navigate(initialNotificationRoute)
-        }
-    }
-
     NavHost(
         navController = navController,
         startDestination = DriverDestinations.SPLASH
@@ -69,7 +63,12 @@ fun DriverAppNavHost(
         composable(DriverDestinations.SPLASH) {
             com.routecj.driver.presentation.splash.SplashScreen(
                 onAnimationFinished = {
-                    navController.navigate(DriverDestinations.LOGIN) {
+                    val targetDestination = if (uiState is AuthUiState.Authenticated && !initialNotificationRoute.isNullOrBlank()) {
+                        initialNotificationRoute
+                    } else {
+                        DriverDestinations.LOGIN
+                    }
+                    navController.navigate(targetDestination) {
                         popUpTo(DriverDestinations.SPLASH) { inclusive = true }
                     }
                 }

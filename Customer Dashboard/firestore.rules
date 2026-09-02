@@ -1,0 +1,200 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper function to get current user data safely
+    // ASSUMPTION: Admin document ID is the Firebase Auth UID
+    function getAdmin() {
+      let adminPath = /databases/$(database)/documents/admins/$(request.auth.uid);
+      return (request.auth != null && exists(adminPath))
+        ? get(adminPath).data
+        : {"role": "UNKNOWN", "adminId": "NONE", "isActive": false};
+    }
+
+    // Helper to check for specific roles
+    function isSuperAdmin() {
+      let role = getAdmin().role;
+      return request.auth != null && (
+        role == "ADMIN001" ||
+        role == "SUPER_ADMIN" ||
+        role == "Super Admin" ||
+        role == "super_admin" ||
+        getAdmin().adminId == "ADMIN001"
+      );
+    }
+
+    function isAdmin() {
+      let role = getAdmin().role;
+      return request.auth != null && (
+        isSuperAdmin() ||
+        role == "ADMIN002" ||
+        role == "ADMIN" ||
+        role == "Admin" ||
+        role == "admin" ||
+        getAdmin().adminId == "ADMIN002"
+      );
+    }
+
+    function isDispatchManager() {
+      let role = getAdmin().role;
+      return request.auth != null && (
+        isAdmin() ||
+        role == "ADMIN004" ||
+        role == "DISPATCH_MANAGER" ||
+        role == "Dispatch Manager" ||
+        role == "dispatch_manager" ||
+        getAdmin().adminId == "ADMIN004"
+      );
+    }
+
+    function isGodownManager() {
+      let role = getAdmin().role;
+      return request.auth != null && (
+        isAdmin() ||
+        role == "ADMIN003" ||
+        role == "GODOWN_MANAGER" ||
+        role == "Godown Manager" ||
+        role == "godown_manager" ||
+        getAdmin().adminId == "ADMIN003"
+      );
+    }
+
+    // --- Customers Collection ---
+    match /customers/{userId} {
+      allow read: if request.auth != null
+                  && request.auth.uid == userId;
+
+      allow create: if request.auth != null
+                    && request.auth.uid == userId
+                    && request.resource.data.uid == request.auth.uid
+                    && request.resource.data.role == "customer";
+
+      allow update: if request.auth != null
+                    && request.auth.uid == userId
+                    && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'uid']) || request.resource.data.role == "customer");
+
+      allow delete: if request.auth != null
+                    && request.auth.uid == userId;
+    }
+
+    // --- Admins Collection ---
+    match /admins/{userId} {
+      // 1. Identity-based access (Sufficient for migrated users and initial discovery)
+
+      // Allow 'get' if:
+      // a) user is fetching their own UID-keyed document (even if it doesn't exist yet)
+      // b) user is fetching a legacy document that contains their UID or Email
+      allow get: if request.auth != null && (
+        request.auth.uid == userId ||
+        (resource != null && (
+          resource.data.uid == request.auth.uid ||
+          (resource.data.email != null && resource.data.email.lower() == request.auth.token.email.lower())
+        ))
+      );
+
+      // Allow 'list' (queries) if the query is constrained to the user's identity.
+      // This is CRITICAL for the migration discovery search.
+      allow list: if request.auth != null && (
+        resource.data.uid == request.auth.uid ||
+        resource.data.email == request.auth.token.email ||
+        (resource.data.email != null && resource.data.email.lower() == request.auth.token.email.lower())
+      );
+
+      // 2. Migration and Profile Management
+
+      // Allow profile creation during migration (UID must match)
+      allow create: if request.auth != null && request.auth.uid == userId;
+
+      // Allow profile update (cannot change identity/role)
+      allow update: if request.auth != null && request.auth.uid == userId
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'uid', 'email', 'adminId']);
+
+      // 3. Administrative access (Super Admin can see and manage all admins)
+      allow read: if isSuperAdmin();
+      allow create, delete: if isSuperAdmin();
+    }
+
+    // --- Orders Collection ---
+    match /orders/{orderId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && (
+        isAdmin() || isDispatchManager() || isGodownManager() ||
+        request.resource.data.customerId == request.auth.uid
+      );
+      allow update: if request.auth != null && (
+        isAdmin() || isDispatchManager() || isGodownManager() ||
+        (resource.data.customerId == request.auth.uid && request.resource.data.customerId == request.auth.uid)
+      );
+      allow delete: if isSuperAdmin();
+    }
+
+    // --- Drivers & Vehicles ---
+    match /drivers/{driverId} {
+      // Drivers can read and update their own document (for live GPS location, lastActive)
+      // Admins and Dispatch Managers can manage driver fleet
+      allow read: if request.auth != null;
+      allow create: if isSuperAdmin() || isAdmin();
+      allow update: if isSuperAdmin() || isAdmin() || isDispatchManager() || (
+        request.auth != null && (
+          request.auth.uid == driverId ||
+          resource.data.uid == request.auth.uid
+        ) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'uid', 'email'])
+      );
+      allow delete: if isSuperAdmin() || isAdmin();
+    }
+
+    match /vehicles/{vehicleId} {
+      allow read: if request.auth != null;
+      allow create, update, delete: if isAdmin() || isDispatchManager();
+
+      match /logs/{logId} {
+        allow read: if request.auth != null;
+        allow write: if isAdmin() || isDispatchManager();
+      }
+    }
+
+    // --- Dispatches ---
+    match /dispatches/{dispatchId} {
+      allow read: if request.auth != null;
+      allow create, update: if isAdmin() || isDispatchManager();
+      allow delete: if isSuperAdmin();
+    }
+
+    // --- Godowns ---
+    match /godowns/{godownId} {
+      allow read: if request.auth != null;
+      allow create, update, delete: if isAdmin() || isGodownManager();
+    }
+
+    // --- Notifications ---
+    match /notifications/{notificationId} {
+      allow create: if request.auth != null; // System generated
+      allow delete: if isSuperAdmin();
+      allow update: if request.auth != null && (
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead', 'read', 'updatedAt'])
+      );
+
+      // Query-compatible read rule
+      // Allows Super Admin to see everything.
+      // Allows others to see:
+      // 1. Private notifications (recipientId or customerId matches)
+      // 2. Global notifications (recipientRole is GLOBAL)
+      // 3. Role-based notifications (if they satisfy that role check)
+      allow read: if request.auth != null && (
+        isSuperAdmin() ||
+        resource.data.recipientId == request.auth.uid ||
+        resource.data.customerId == request.auth.uid ||
+        resource.data.recipientRole == "GLOBAL" ||
+        (resource.data.recipientRole == "ADMIN" && isAdmin()) ||
+        (resource.data.recipientRole == "Admin" && isAdmin()) ||
+        (resource.data.recipientRole == "ADMIN002" && isAdmin()) ||
+        (resource.data.recipientRole == "DISPATCH_MANAGER" && isDispatchManager()) ||
+        (resource.data.recipientRole == "Dispatch Manager" && isDispatchManager()) ||
+        (resource.data.recipientRole == "ADMIN004" && isDispatchManager()) ||
+        (resource.data.recipientRole == "GODOWN_MANAGER" && isGodownManager()) ||
+        (resource.data.recipientRole == "Godown Manager" && isGodownManager()) ||
+        (resource.data.recipientRole == "ADMIN003" && isGodownManager())
+      );
+    }
+  }
+}

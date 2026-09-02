@@ -1,0 +1,176 @@
+<html class="dark" lang="en"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config={darkMode:"class",theme:{extend:{colors:{"surface-container-highest":"#313442","primary-fixed":"#dae1ff","primary-fixed-dim":"#b3c5ff","outline-variant":"#424656","on-tertiary":"#003824","on-surface-variant":"#c2c6d8","inverse-surface":"#dfe2f3","surface-tint":"#b3c5ff","on-error-container":"#ffdad6","on-secondary-fixed-variant":"#38485d","on-background":"#dfe2f3","surface":"#0f131f","surface-variant":"#313442","tertiary-fixed":"#6ffbbe","tertiary-container":"#008259","surface-container-low":"#171b28","surface-dim":"#0f131f","on-primary-fixed-variant":"#003fa4","on-tertiary-container":"#e1ffec","error-container":"#93000a","on-tertiary-fixed":"#002113","on-surface":"#dfe2f3","background":"#0f131f","surface-container-high":"#262a37","secondary":"#b7c8e1","outline":"#8c90a1","on-error":"#690005","surface-bright":"#353946","secondary-fixed-dim":"#b7c8e1","primary-container":"#0066ff","error":"#ffb4ab","on-secondary":"#213145","on-tertiary-fixed-variant":"#005236","on-primary-fixed":"#001849","on-primary":"#002b75","on-secondary-fixed":"#0b1c30","surface-container":"#1b1f2c","surface-container-lowest":"#0a0e1a","tertiary-fixed-dim":"#4edea3","on-secondary-container":"#a9bad3","inverse-primary":"#0054d6","inverse-on-surface":"#2c303d","secondary-container":"#3a4a5f","primary":"#b3c5ff","tertiary":"#4edea3","secondary-fixed":"#d3e4fe","on-primary-container":"#f8f7ff"},borderRadius:{DEFAULT:"0.25rem",lg:"0.5rem",xl:"0.75rem",full:"9999px"},spacing:{edge_margin:"16px","2xl":"48px",none:"0px",md:"16px",sm:"8px",xl:"32px",xs:"4px",gutter:"12px",lg:"24px"},fontFamily:{"label-md":["Inter"],"body-md":["Inter"],"label-lg":["Inter"],"headline-lg-mobile":["Inter"],"title-lg":["Inter"],"headline-lg":["Inter"],"headline-sm":["Inter"],"headline-md":["Inter"],"body-lg":["Inter"]},fontSize:{"label-md":["12px",{lineHeight:"16px",letterSpacing:"0.5px",fontWeight:"500"}],"body-md":["14px",{lineHeight:"20px",fontWeight:"400"}],"label-lg":["14px",{lineHeight:"20px",letterSpacing:"0.1px",fontWeight:"600"}],"headline-lg-mobile":["28px",{lineHeight:"36px",fontWeight:"700"}],"title-lg":["18px",{lineHeight:"24px",fontWeight:"600"}],"headline-lg":["32px",{lineHeight:"40px",letterSpacing:"-0.02em",fontWeight:"700"}],"headline-sm":["20px",{lineHeight:"28px",fontWeight:"600"}],"headline-md":["24px",{lineHeight:"32px",letterSpacing:"-0.01em",fontWeight:"600"}],"body-lg":["16px",{lineHeight:"24px",fontWeight:"400"}]}}}}</script><style>@layer base { body { @apply bg-background text-on-background antialiased; } .pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); } .pt-safe { padding-top: env(safe-area-inset-top, 0px); } }</style><style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head><body class="min-h-screen flex flex-col"><header class="fixed top-0 w-full z-50 bg-surface/80 backdrop-blur-xl pt-safe shadow-[0_1px_8px_rgba(0,0,0,0.04)]"><div class="h-16 px-edge_margin flex items-center gap-md"><button class="w-11 h-11 flex items-center justify-center rounded-full hover:bg-surface-variant transition-colors" onclick="history.back()"><span class="material-symbols-outlined text-on-surface">arrow_back</span></button><div class="flex-1"><h1 class="font-title-lg text-title-lg text-on-surface">Create Delivery</h1></div><img alt="Profile" class="w-8 h-8 rounded-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCU3CQ8e8TCcyNtFPv9hXMzk-kvZCm4L6wA-Id-ltctKFq-JgO_rY2a3of1so2nSw2S5LTrFosDjMOUgL1YyRtinRb6_5GEcOic7pZRdVA4e_CMKIkk9BUBlAoYC4vxxca08rxvbWTj0vveKGtxVN1h8XlREuzYo6xau5ADzDM_ywRFncEunSRrEqMhqf195KQFUx2YnIL2UAjC9xVBfQIb-YnYhlISppZ3Tlh5R9DBDCqLk6uAYLao"/></div></header><main class="flex-1 pt-16 bg-surface"><div class="flex flex-col w-full relative" id="booking-flow">
+<!-- View 1: Summary -->
+<div class="flex flex-col w-full transition-all duration-500 ease-in-out opacity-100" id="view-summary">
+<!-- Map Preview -->
+<div class="w-full h-48 relative overflow-hidden" data-location="Route from Downtown Warehouse to Industrial Park Delivery Point" style="background-image: url('https://www.gstatic.com/labs-code/stitch/stitch-placeholder-300x300.svg')">
+<div class="absolute inset-0 bg-gradient-to-t from-surface via-surface/20 to-transparent"></div>
+</div>
+<!-- Scrollable Content -->
+<div class="flex flex-col w-full px-edge_margin pb-[120px] -mt-md relative z-10 gap-lg">
+<!-- Route Details Card -->
+<div class="bg-surface-container rounded-xl p-md shadow-sm flex flex-col gap-md">
+<h2 class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Route Info</h2>
+<div class="flex gap-md relative">
+<!-- Timeline Graphic -->
+<div class="flex flex-col items-center mt-xs">
+<div class="w-3 h-3 rounded-full bg-tertiary shadow-[0_0_8px_rgba(78,222,163,0.4)]"></div>
+<div class="w-[2px] h-12 bg-surface-container-highest my-xs rounded-full"></div>
+<div class="w-3 h-3 rounded-full bg-primary-container shadow-[0_0_8px_rgba(0,102,255,0.4)]"></div>
+</div>
+<!-- Addresses -->
+<div class="flex flex-col w-full justify-between pb-sm">
+<div class="flex flex-col gap-xs mb-md">
+<span class="font-label-md text-label-md text-on-surface-variant">PICKUP</span>
+<span class="font-body-lg text-body-lg text-on-surface line-clamp-1">Logistics Hub Alpha, Dock 42</span>
+</div>
+<div class="flex flex-col gap-xs">
+<span class="font-label-md text-label-md text-on-surface-variant">DESTINATION</span>
+<span class="font-body-lg text-body-lg text-on-surface line-clamp-1">794 Industrial Pkwy, Sector 7</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Bento Grid Details -->
+<div class="grid grid-cols-2 gap-sm w-full">
+<!-- Package -->
+<div class="bg-surface-container rounded-xl p-md flex flex-col gap-sm shadow-sm">
+<div class="flex items-center gap-xs text-on-surface-variant">
+<span class="material-symbols-outlined text-[18px]">inventory_2</span>
+<span class="font-label-md text-label-md uppercase tracking-wider">Package</span>
+</div>
+<span class="font-title-lg text-title-lg text-on-surface">Palletized</span>
+</div>
+<!-- Weight -->
+<div class="bg-surface-container rounded-xl p-md flex flex-col gap-sm shadow-sm">
+<div class="flex items-center gap-xs text-on-surface-variant">
+<span class="material-symbols-outlined text-[18px]">weight</span>
+<span class="font-label-md text-label-md uppercase tracking-wider">Weight</span>
+</div>
+<span class="font-title-lg text-title-lg text-on-surface">1,240 lbs</span>
+</div>
+<!-- Count -->
+<div class="bg-surface-container rounded-xl p-md flex flex-col gap-sm shadow-sm">
+<div class="flex items-center gap-xs text-on-surface-variant">
+<span class="material-symbols-outlined text-[18px]">layers</span>
+<span class="font-label-md text-label-md uppercase tracking-wider">Count</span>
+</div>
+<span class="font-title-lg text-title-lg text-on-surface">3 Units</span>
+</div>
+<!-- Slot -->
+<div class="bg-surface-container rounded-xl p-md flex flex-col gap-sm shadow-sm">
+<div class="flex items-center gap-xs text-on-surface-variant">
+<span class="material-symbols-outlined text-[18px]">schedule</span>
+<span class="font-label-md text-label-md uppercase tracking-wider">Slot</span>
+</div>
+<span class="font-title-lg text-title-lg text-on-surface">14:00 - 16:00</span>
+</div>
+</div>
+<!-- Instructions -->
+<div class="bg-surface-container rounded-xl p-md flex flex-col gap-sm shadow-sm">
+<span class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Instructions</span>
+<p class="font-body-md text-body-md text-on-surface">
+                    Requires tailgate and pump truck. Call site manager upon arrival at the gate. Do not double-stack pallets.
+                </p>
+</div>
+</div>
+<!-- Fixed Bottom Action -->
+<div class="fixed bottom-0 left-0 right-0 p-edge_margin pb-safe pt-md bg-surface/90 backdrop-blur-xl z-20 shadow-[0_-8px_24px_rgba(0,0,0,0.2)]">
+<button class="w-full h-[56px] rounded-lg bg-primary-container text-on-primary-container flex items-center justify-center relative overflow-hidden transition-all active:brightness-110 shadow-md" id="btn-confirm">
+<span class="font-label-lg text-label-lg tracking-wide flex items-center gap-sm" id="btn-label">
+                    CONFIRM BOOKING
+                    <span class="material-symbols-outlined">arrow_forward</span>
+</span>
+<!-- Loading State overlay -->
+<div class="absolute inset-0 bg-primary-container flex items-center justify-center gap-sm opacity-0 pointer-events-none transition-opacity duration-300" id="btn-loading">
+<svg class="animate-spin h-5 w-5 text-on-primary-container" fill="none" viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+<path class="opacity-75" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" fill="currentColor"></path>
+</svg>
+<span class="font-label-lg text-label-lg">CREATING BOOKING...</span>
+</div>
+</button>
+</div>
+</div>
+<!-- View 2: Success State (Hidden by default) -->
+<div class="fixed inset-0 z-50 bg-surface flex flex-col items-center justify-center p-edge_margin opacity-0 pointer-events-none transition-opacity duration-500 delay-150" id="view-success">
+<!-- Animated Success Graphic -->
+<div class="relative w-32 h-32 mb-xl flex items-center justify-center">
+<div class="absolute inset-0 bg-tertiary/20 rounded-full animate-ping" style="animation-duration: 3s;"></div>
+<div class="absolute inset-4 bg-tertiary/40 rounded-full animate-pulse"></div>
+<div class="relative z-10 w-20 h-20 bg-tertiary rounded-full flex items-center justify-center shadow-[0_0_32px_rgba(78,222,163,0.5)]">
+<span class="material-symbols-outlined text-on-tertiary" style="font-size: 40px; font-variation-settings: 'FILL' 1;">check</span>
+</div>
+</div>
+<h1 class="font-headline-lg-mobile text-headline-lg-mobile text-on-surface mb-sm text-center">Booking Confirmed!</h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant mb-xl text-center max-w-[280px]">
+            Your shipment has been successfully routed and assigned to a carrier.
+        </p>
+<!-- Booking ID Badge -->
+<div class="bg-surface-container-high rounded-full px-lg py-sm flex items-center gap-sm shadow-sm mb-2xl">
+<span class="material-symbols-outlined text-on-surface-variant text-[20px]">tag</span>
+<span class="font-label-lg text-label-lg text-on-surface tracking-widest">RCJ-992831</span>
+</div>
+<!-- Success Actions -->
+<div class="w-full flex flex-col gap-md mt-auto pb-safe">
+<button class="w-full h-[56px] rounded-lg bg-primary-container text-on-primary-container font-label-lg text-label-lg flex items-center justify-center shadow-md active:brightness-110 transition-all">
+                VIEW MY DELIVERY
+            </button>
+<button class="w-full h-[56px] rounded-lg bg-transparent text-primary font-label-lg text-label-lg flex items-center justify-center active:bg-surface-variant transition-colors" onclick="resetFlow()">
+                BACK TO HOME
+            </button>
+</div>
+</div>
+</div>
+<script>
+    document.getElementById('btn-confirm').addEventListener('click', function() {
+        const btn = this;
+        const label = document.getElementById('btn-label');
+        const loading = document.getElementById('btn-loading');
+        const summaryView = document.getElementById('view-summary');
+        const successView = document.getElementById('view-success');
+
+        // 1. Transition to loading state
+        btn.disabled = true;
+        label.style.opacity = '0';
+        loading.style.opacity = '1';
+        
+        // 2. Simulate network request (2 seconds)
+        setTimeout(() => {
+            // Fade out summary view
+            summaryView.style.opacity = '0';
+            summaryView.style.pointerEvents = 'none';
+            
+            // Fade in success view
+            successView.style.opacity = '1';
+            successView.style.pointerEvents = 'auto';
+            
+        }, 2000);
+    });
+
+    // Reset function for the demo loop
+    function resetFlow() {
+        const btn = document.getElementById('btn-confirm');
+        const label = document.getElementById('btn-label');
+        const loading = document.getElementById('btn-loading');
+        const summaryView = document.getElementById('view-summary');
+        const successView = document.getElementById('view-success');
+
+        successView.style.opacity = '0';
+        successView.style.pointerEvents = 'none';
+        
+        setTimeout(() => {
+            btn.disabled = false;
+            label.style.opacity = '1';
+            loading.style.opacity = '0';
+            
+            summaryView.style.opacity = '1';
+            summaryView.style.pointerEvents = 'auto';
+        }, 500);
+    }
+</script></main></body></html>
